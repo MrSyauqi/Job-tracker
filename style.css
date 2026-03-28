@@ -15,19 +15,17 @@ body {
 }
 
 /* Priority Borders */
-.priority-3 { border-left: 6px solid #ef4444 !important; } /* High - Red */
-.priority-2 { border-left: 6px solid #f59e0b !important; } /* Medium - Orange */
-.priority-1 { border-left: 6px solid #10b981 !important; } /* Low - Green */
+.priority-3 { border-left: 8px solid #ef4444 !important; }
+.priority-2 { border-left: 8px solid #f59e0b !important; }
+.priority-1 { border-left: 8px solid #10b981 !important; }
 
-.history-card { 
-    transition: all 0.2s ease; 
+.history-card { transition: all 0.2s ease; }
+
+.customer-pill {
+    animation: popIn 0.3s ease-out;
 }
 
-.note-item {
-    animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
 }
