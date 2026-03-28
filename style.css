@@ -1,21 +1,13 @@
-body { 
-    background-color: #f8fafc; 
-    -webkit-tap-highlight-color: transparent; 
-}
-
-.tab-btn { 
-    transition: all 0.2s; 
-    border-bottom: 4px solid transparent; 
-}
+.priority-3 { border-left: 10px solid #ef4444 !important; }
+.priority-2 { border-left: 10px solid #f59e0b !important; }
+.priority-1 { border-left: 10px solid #10b981 !important; }
 
 .tab-active { 
-    border-bottom-color: #2563eb; 
-    color: #2563eb; 
+    color: #2563eb !important; 
+    border-bottom: 4px solid #2563eb !important; 
+    font-weight: 900 !important; 
 }
 
-/* Priority Borders */
-.priority-3 { border-left: 12px solid #ef4444 !important; }
-.priority-2 { border-left: 12px solid #f59e0b !important; }
-.priority-1 { border-left: 12px solid #10b981 !important; }
+circle { transition: stroke-dashoffset 0.8s ease-in-out; }
 
-.history-card { transition: all 0.2s ease; }
+button:active { transform: scale(0.95); }
