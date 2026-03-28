@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workbase Cloud Pro</title>
+    <title>SYAUQI TRACKER PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="p-4 md:p-8">
     <div class="max-w-md mx-auto">
-        <header class="mb-6 flex justify-between items-center">
+        <header class="mb-6 flex justify-between items-end">
             <div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight">WORKBASE CLOUD</h1>
-                <p class="text-[10px] text-emerald-600 font-bold uppercase tracking-widest text-emerald-600">Field Service Engineer Portal</p>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tighter">SYAUQI <span class="text-blue-600">TRACKER</span> PRO</h1>
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Field Engineering & Vision Systems</p>
             </div>
-            <div id="connectionDot" class="h-3 w-3 bg-red-500 rounded-full animate-pulse shadow-sm"></div>
+            <div id="connectionDot" class="h-3 w-3 bg-red-500 rounded-full animate-pulse shadow-sm mb-1"></div>
         </header>
 
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
@@ -31,11 +31,11 @@
                 </select>
             </div>
 
-            <button id="addBtn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl active:scale-95 transition shadow-lg shadow-blue-100">Add New Job</button>
+            <button id="addBtn" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl active:scale-95 transition shadow-lg">Register New Job</button>
         </div>
 
         <div class="flex border-b mb-4 bg-white rounded-t-xl overflow-hidden text-sm font-bold">
-            <button id="pTabBtn" class="tab-btn tab-active flex-1 py-4">Pending (<span id="pC">0</span>)</button>
+            <button id="pTabBtn" class="tab-btn tab-active flex-1 py-4">Active (<span id="pC">0</span>)</button>
             <button id="cTabBtn" class="tab-btn flex-1 py-4 text-slate-400">History (<span id="cC">0</span>)</button>
         </div>
 
