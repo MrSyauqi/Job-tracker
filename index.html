@@ -12,7 +12,7 @@
         <header class="mb-6 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">WORKBASE CLOUD</h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-emerald-600">Field Service Engineer Portal</p>
+                <p class="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Field Service Engineer Portal</p>
             </div>
             <div id="connectionDot" class="h-3 w-3 bg-red-500 rounded-full animate-pulse shadow-sm"></div>
         </header>
@@ -20,22 +20,22 @@
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
             <input id="jt" placeholder="Issue (e.g. Vision Sensor Fail)" class="w-full mb-3 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
             
-            <div class="flex gap-2 mb-2">
-                <input id="jc" placeholder="Customer Name" class="w-1/2 p-3 border rounded-xl outline-none bg-slate-50">
+            <div class="flex gap-2 mb-4">
+                <input id="jc" list="customerData" placeholder="Customer Name" class="w-1/2 p-3 border rounded-xl outline-none bg-slate-50">
+                <datalist id="customerData"></datalist>
+
                 <select id="jp" class="w-1/2 p-3 border rounded-xl bg-slate-50 outline-none text-sm font-bold">
                     <option value="1">Low Priority</option>
                     <option value="2" selected>Medium</option>
-                    <option value="3">High (Critical)</option>
+                    <option value="3">High (Critical) 🚨</option>
                 </select>
             </div>
-
-            <div id="customerList" class="flex flex-wrap gap-2 mb-3 min-h-[20px]"></div>
 
             <button id="addBtn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl active:scale-95 transition shadow-lg shadow-blue-100">Add New Job</button>
         </div>
 
         <div class="flex border-b mb-4 bg-white rounded-t-xl overflow-hidden text-sm">
-            <button id="pTabBtn" class="tab-btn tab-active flex-1 py-4">Pending (<span id="pC">0</span>)</button>
+            <button id="pTabBtn" class="tab-btn tab-active flex-1 py-4 text-slate-400">Pending (<span id="pC">0</span>)</button>
             <button id="cTabBtn" class="tab-btn flex-1 py-4 text-slate-400">History (<span id="cC">0</span>)</button>
         </div>
 
