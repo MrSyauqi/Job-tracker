@@ -15,7 +15,7 @@ const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
 let openLogs = new Set(); 
 
-// REAL-TIME LISTENER
+// LISTEN TO DATABASE
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     document.getElementById('connectionDot').classList.replace('bg-red-500', 'bg-green-500');
     let pending = [], history = [], allData = [];
@@ -28,7 +28,6 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
         d.status === 'pending' ? pending.push(d) : history.push(d);
     });
 
-    // Autocomplete
     const datalist = document.getElementById('customerData');
     if(datalist) datalist.innerHTML = Array.from(customers).map(name => `<option value="${name}">`).join('');
     
@@ -36,11 +35,18 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     renderCharts(allData);
 });
 
-// ACTIONS
+// FUNCTIONS
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp');
-    if (!t.value || !c.value) return alert("Missing Customer or Task!");
-    await addDoc(jobsCol, { title: t.value.toUpperCase(), client: c.value.trim().toUpperCase(), priority: parseInt(p.value), status: 'pending', notes: [], createdAt: Date.now() });
+    if (!t.value || !c.value) return alert("Fill Name and Issue!");
+    await addDoc(jobsCol, { 
+        title: t.value.toUpperCase(), 
+        client: c.value.trim().toUpperCase(), 
+        priority: parseInt(p.value), 
+        status: 'pending', 
+        notes: [], 
+        createdAt: Date.now() 
+    });
     t.value = ''; c.value = '';
 };
 
@@ -56,8 +62,16 @@ window.saveNote = async (id, notes) => {
     inp.value = '';
 };
 
-window.deleteJob = async (id) => {
-    if(confirm("Permanently delete this record?")) await deleteDoc(doc(db, "jobs", id));
+window.shareWA = (client, title, notes) => {
+    const lastLog = notes.length > 0 ? notes[notes.length - 1] : "Job started.";
+    const msg = `*FIELD SERVICE UPDATE*%0A*Customer:* ${client}%0A*Issue:* ${title}%0A*Update:* ${lastLog}%0A*Status:* IN PROGRESS`;
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+};
+
+window.filterJobs = () => {
+    const val = document.getElementById('searchInput').value.toUpperCase();
+    const cards = document.querySelectorAll('#pV > div, #cV > div');
+    cards.forEach(c => c.style.display = c.innerText.toUpperCase().includes(val) ? "block" : "none");
 };
 
 window.toggleLog = (id) => {
@@ -74,11 +88,9 @@ window.switchTab = (btnId, viewId) => {
     document.getElementById('inputSection').classList.toggle('hidden', viewId === 'sV');
 };
 
-// ANALYTICS (The Pie Chart Engine)
+// RENDER ANALYTICS (Charts)
 function renderCharts(data) {
     const sV = document.getElementById('sV');
-    if(!sV) return;
-
     const stats = data.reduce((acc, job) => {
         if (!acc[job.client]) acc[job.client] = { p: 0, c: 0, total: 0 };
         job.status === 'pending' ? acc[job.client].p++ : acc[job.client].c++;
@@ -86,63 +98,58 @@ function renderCharts(data) {
         return acc;
     }, {});
 
-    let html = `<p class="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Customer Case Summary</p>`;
-
+    let html = `<p class="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Customer Statistics</p>`;
     for (let client in stats) {
         const percent = Math.round((stats[client].c / stats[client].total) * 100);
-        const offset = 100 - percent;
-        const themeColor = percent === 100 ? 'stroke-emerald-500' : 'stroke-blue-600';
-
+        const color = percent === 100 ? 'stroke-emerald-500' : 'stroke-blue-600';
         html += `
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-5 shadow-sm">
-            <div class="relative h-16 w-16">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-5">
+            <div class="relative h-14 w-14">
                 <svg class="h-full w-full" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="16" fill="none" class="stroke-slate-100" stroke-width="3"></circle>
-                    <circle cx="18" cy="18" r="16" fill="none" class="${themeColor}" stroke-width="3" 
-                        stroke-dasharray="100" stroke-dashoffset="${offset}" stroke-linecap="round" transform="rotate(-90 18 18)"></circle>
+                    <circle cx="18" cy="18" r="16" fill="none" class="stroke-slate-100" stroke-width="4"></circle>
+                    <circle cx="18" cy="18" r="16" fill="none" class="${color}" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="${100-percent}" stroke-linecap="round" transform="rotate(-90 18 18)"></circle>
                 </svg>
-                <div class="absolute inset-0 flex items-center justify-center text-[10px] font-black">${percent}%</div>
+                <div class="absolute inset-0 flex items-center justify-center text-[9px] font-black">${percent}%</div>
             </div>
-            <div class="flex-1">
-                <h4 class="font-black text-slate-800 uppercase text-xs mb-1">${client}</h4>
-                <div class="grid grid-cols-2 gap-y-1 text-[9px] font-bold">
-                    <span class="text-slate-400">TOTAL: ${stats[client].total}</span>
-                    <span class="text-emerald-500 text-right font-black">DONE: ${stats[client].c}</span>
-                    <span class="text-blue-500">OPEN: ${stats[client].p}</span>
+            <div class="flex-1 uppercase">
+                <h4 class="font-black text-slate-800 text-xs">${client}</h4>
+                <div class="flex gap-3 text-[9px] font-bold text-slate-400">
+                    <span>Total: ${stats[client].total}</span> <span class="text-emerald-500">Done: ${stats[client].c}</span>
                 </div>
             </div>
         </div>`;
     }
-    sV.innerHTML = html || "<p class='text-center text-xs py-10'>No data yet.</p>";
+    sV.innerHTML = html;
 }
 
-// LIST RENDERER
+// RENDER LISTS
 function renderJobs(pending, history) {
     document.getElementById('pC').innerText = pending.length;
     document.getElementById('cC').innerText = history.length;
 
     document.getElementById('pV').innerHTML = pending.map(j => `
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 priority-${j.priority}">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 priority-${j.priority} mb-3">
             <div class="flex justify-between items-start">
                 <div onclick="window.toggleLog('${j.id}')" class="flex-1 cursor-pointer">
                     <h3 class="font-black text-slate-800 text-lg uppercase">${j.client}</h3>
-                    <p class="text-xs text-blue-600 font-bold uppercase tracking-tight">${j.title}</p>
+                    <p class="text-xs text-blue-600 font-bold uppercase">${j.title}</p>
                 </div>
-                <button onclick="window.finishJob('${j.id}')" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-md uppercase">Done</button>
+                <div class="flex flex-col gap-2">
+                    <button onclick="window.finishJob('${j.id}')" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Done</button>
+                    <button onclick="window.shareWA('${j.client}', '${j.title}', ${JSON.stringify(j.notes)})" class="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-bold">Report 💬</button>
+                </div>
             </div>
             <div id="logbox-${j.id}" class="hidden mt-3 pt-3 border-t">
                 <div class="space-y-1 mb-3">${j.notes.map(n => `<div class="text-[10px] bg-slate-50 p-2 border-l-2 border-blue-500 rounded font-bold">${n}</div>`).join('')}</div>
-                <div class="flex gap-2"><input id="n-${j.id}" class="flex-1 text-[11px] p-2 border rounded" placeholder="Update log..."><button onclick='window.saveNote("${j.id}", ${JSON.stringify(j.notes)})' class="bg-slate-800 text-white px-3 py-1 rounded text-[10px] font-black">ADD</button></div>
-                <button onclick="window.deleteJob('${j.id}')" class="text-[9px] text-red-300 mt-3 uppercase font-bold">Delete Case</button>
+                <div class="flex gap-2"><input id="n-${j.id}" class="flex-1 text-[11px] p-2 border rounded" placeholder="Add note..."><button onclick='window.saveNote("${j.id}", ${JSON.stringify(j.notes)})' class="bg-slate-800 text-white px-3 py-1 rounded text-[10px] font-black">ADD</button></div>
             </div>
         </div>`).join('');
 
     document.getElementById('cV').innerHTML = history.map(j => `
-        <div class="bg-white p-3 rounded-xl border opacity-70 flex justify-between items-center">
-            <div>
-                <p class="font-black text-slate-400 text-xs uppercase">${j.client}</p>
+        <div class="bg-white p-3 rounded-xl border opacity-70 flex justify-between items-center mb-2">
+            <div class="uppercase">
+                <p class="font-black text-slate-400 text-xs">${j.client}</p>
                 <p class="text-[9px] font-bold text-slate-400">${j.title} • ${j.date}</p>
             </div>
-            <button onclick="window.deleteJob('${j.id}')" class="text-[9px] text-red-400 font-bold uppercase p-2">Clear</button>
         </div>`).join('');
 }
