@@ -22,3 +22,10 @@ body {
     from { opacity: 0; transform: translateX(-10px); }
     to { opacity: 1; transform: translateX(0); }
 }
+/* Add to your style.css */
+.priority-3 { border-left: 6px solid #ef4444 !important; } /* High - Red */
+.priority-2 { border-left: 6px solid #f59e0b !important; } /* Medium - Orange */
+.priority-1 { border-left: 6px solid #10b981 !important; } /* Low - Green */
+
+.history-card { transition: all 0.3s ease; }
+.history-card:active { background-color: #f1f5f9; }
