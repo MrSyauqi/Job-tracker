@@ -5,17 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SYAUQI WORKTRACK PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .priority-3 { border-left: 10px solid #ef4444 !important; }
-        .priority-2 { border-left: 10px solid #f59e0b !important; }
-        .priority-1 { border-left: 10px solid #10b981 !important; }
-        .tab-active { color: #2563eb; border-bottom: 4px solid #2563eb; font-weight: 900; }
-        body { -webkit-tap-highlight-color: transparent; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-50 p-4 pb-20">
     <div class="max-w-md mx-auto">
-        <header class="mb-6 flex justify-between items-center">
+        <header class="mb-4 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tighter uppercase">SYAUQI <span class="text-blue-600">Track</span></h1>
                 <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Vision System Engineering</p>
@@ -23,21 +17,25 @@
             <div id="connectionDot" class="h-3 w-3 bg-red-500 rounded-full shadow-sm"></div>
         </header>
 
+        <div class="mb-4">
+            <input id="searchInput" onkeyup="window.filterJobs()" placeholder="SEARCH CUSTOMER OR ISSUE..." class="w-full p-3 rounded-xl border border-slate-200 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 text-xs font-black uppercase">
+        </div>
+
         <div id="inputSection" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
             <input id="jc" list="customerData" placeholder="Customer Name" class="w-full mb-3 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-bold uppercase text-sm">
             <datalist id="customerData"></datalist>
             <div class="flex gap-2 mb-4">
-                <input id="jt" placeholder="Issue/Task" class="w-2/3 p-3 border rounded-xl outline-none text-sm uppercase">
+                <input id="jt" placeholder="Issue/Task" class="w-2/3 p-3 border rounded-xl outline-none text-sm uppercase font-semibold">
                 <select id="jp" class="w-1/3 p-3 border rounded-xl bg-slate-50 outline-none text-xs font-black">
-                    <option value="1 text-emerald-500">LOW</option>
-                    <option value="2 text-orange-500" selected>MED</option>
-                    <option value="3 text-red-600">HIGH 🚨</option>
+                    <option value="1">LOW</option>
+                    <option value="2" selected>MED</option>
+                    <option value="3">HIGH 🚨</option>
                 </select>
             </div>
-            <button onclick="window.addJob()" class="w-full bg-slate-800 text-white font-black py-4 rounded-xl active:scale-95 transition shadow-lg uppercase text-xs">Register New Case</button>
+            <button onclick="window.addJob()" class="w-full bg-slate-800 text-white font-black py-4 rounded-xl active:scale-95 transition shadow-lg uppercase text-xs tracking-widest">Register New Case</button>
         </div>
 
-        <div class="flex bg-white rounded-t-2xl border-b overflow-hidden text-[10px] font-black uppercase tracking-widest sticky top-0 z-10">
+        <div class="flex bg-white rounded-t-2xl border-b overflow-hidden text-[10px] font-black uppercase tracking-widest sticky top-0 z-10 shadow-sm">
             <button id="pTabBtn" onclick="window.switchTab('pTabBtn', 'pV')" class="flex-1 py-4 tab-active">Active (<span id="pC">0</span>)</button>
             <button id="cTabBtn" onclick="window.switchTab('cTabBtn', 'cV')" class="flex-1 py-4 text-slate-400">History (<span id="cC">0</span>)</button>
             <button id="sTabBtn" onclick="window.switchTab('sTabBtn', 'sV')" class="flex-1 py-4 text-slate-400">Analytics 📊</button>
