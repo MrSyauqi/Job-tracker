@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
@@ -45,15 +45,27 @@ window.addJob = async () => {
 window.saveNote = async (id, currentNotes) => {
     const inp = document.getElementById(`n-${id}`);
     if (!inp.value) return;
-
     const now = new Date();
     const timeStamp = `[${now.getDate()}/${now.getMonth()+1} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}]`;
-    
     openLogs.add(id); 
     const newNotes = [...currentNotes, `${timeStamp} ${inp.value}`];
-    
     await updateDoc(doc(db, "jobs", id), { notes: newNotes });
     inp.value = '';
+};
+
+// NEW: Function to delete a specific log entry
+window.deleteNote = async (jobId, noteIndex, currentNotes) => {
+    if(!confirm("Delete this log entry?")) return;
+    openLogs.add(jobId);
+    currentNotes.splice(noteIndex, 1);
+    await updateDoc(doc(db, "jobs", jobId), { notes: currentNotes });
+};
+
+// NEW: Function to delete an entire job permanently
+window.deleteJob = async (id) => {
+    if(!confirm("Permanently delete this entire job record?")) return;
+    openLogs.delete(id);
+    await deleteDoc(doc(db, "jobs", id));
 };
 
 window.toggleLog = (id) => {
@@ -89,13 +101,23 @@ function render(pending, history) {
             <div class="flex justify-between items-start">
                 <div onclick="window.toggleLog('${j.id}')" class="flex-1 cursor-pointer">
                     <h3 class="font-black text-slate-800 text-lg uppercase leading-tight">${j.client}</h3>
-                    <p class="text-xs text-blue-600 font-bold mt-1 uppercase tracking-tight">${j.priority === 3 ? '🚨 ' : ''}${j.title}</p>
+                    <p class="text-xs text-blue-600 font-bold mt-1 uppercase tracking-tight">${j.title}</p>
                     <span class="text-[9px] text-slate-300 font-bold uppercase mt-1 inline-block tracking-widest">▼ LOG</span>
                 </div>
-                <button onclick="window.finishJob('${j.id}')" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md">Done</button>
+                <div class="flex flex-col gap-2">
+                    <button onclick="window.finishJob('${j.id}')" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md">Done</button>
+                    <button onclick="window.deleteJob('${j.id}')" class="text-[10px] text-red-400 font-bold hover:text-red-600">Delete Job</button>
+                </div>
             </div>
             <div id="logbox-${j.id}" class="${openLogs.has(j.id) ? '' : 'hidden'} mt-3 pt-3 border-t">
-                <div class="space-y-1 mb-3">${j.notes.map(n => `<div class="text-[11px] bg-slate-50 p-2 border-l-2 border-blue-500 rounded font-medium text-slate-700">${n}</div>`).join('')}</div>
+                <div class="space-y-1 mb-3">
+                    ${j.notes.map((n, index) => `
+                        <div class="flex justify-between items-center bg-slate-50 p-2 border-l-2 border-blue-500 rounded">
+                            <span class="text-[11px] font-medium text-slate-700">${n}</span>
+                            <button onclick='window.deleteNote("${j.id}", ${index}, ${JSON.stringify(j.notes)})' class="text-slate-300 hover:text-red-500 px-2 text-xs">×</button>
+                        </div>
+                    `).join('')}
+                </div>
                 <div class="flex gap-2">
                     <input id="n-${j.id}" class="flex-1 text-xs p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-400" placeholder="Technical log...">
                     <button onclick='window.saveNote("${j.id}", ${JSON.stringify(j.notes)})' class="bg-slate-800 text-white px-4 py-1 rounded-lg text-[10px] font-bold">Update</button>
@@ -111,7 +133,10 @@ function render(pending, history) {
                     <div class="font-black text-slate-500 text-sm uppercase">${j.client}</div>
                     <div class="text-[10px] text-slate-400 font-bold tracking-tight">${j.title} • Fixed: ${j.date}</div>
                 </div>
-                <button onclick="window.restoreJob('${j.id}')" class="text-blue-500 text-[10px] font-bold px-2 py-1 bg-blue-50 rounded-lg">Restore</button>
+                <div class="flex gap-3 items-center">
+                    <button onclick="window.restoreJob('${j.id}')" class="text-blue-500 text-[10px] font-bold px-2 py-1 bg-blue-50 rounded-lg">Restore</button>
+                    <button onclick="window.deleteJob('${j.id}')" class="text-red-400 text-xs font-bold px-2">Delete</button>
+                </div>
             </div>
             <div id="logbox-${j.id}" class="${openLogs.has(j.id) ? '' : 'hidden'} mt-3 pt-3 border-t bg-slate-50 p-3 rounded-lg">
                 ${j.notes.map(n => `<div class="text-[10px] text-slate-600 mb-1 pb-1 border-b border-white">${n}</div>`).join('') || '<p class="text-[10px] italic">No logs.</p>'}
