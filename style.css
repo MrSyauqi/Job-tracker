@@ -11,21 +11,11 @@ body {
 .tab-active { 
     border-bottom-color: #2563eb; 
     color: #2563eb; 
-    font-weight: bold; 
 }
 
-/* Priority Borders */
-.priority-3 { border-left: 8px solid #ef4444 !important; }
-.priority-2 { border-left: 8px solid #f59e0b !important; }
-.priority-1 { border-left: 8px solid #10b981 !important; }
+/* Priority Borders - High is very visible */
+.priority-3 { border-left: 10px solid #ef4444 !important; }
+.priority-2 { border-left: 10px solid #f59e0b !important; }
+.priority-1 { border-left: 10px solid #10b981 !important; }
 
 .history-card { transition: all 0.2s ease; }
-
-.customer-pill {
-    animation: popIn 0.3s ease-out;
-}
-
-@keyframes popIn {
-    0% { transform: scale(0.8); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
-}
