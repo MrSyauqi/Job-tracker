@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
@@ -14,58 +14,69 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
 
-// --- Customer Auto-Complete Memory ---
-let knownCustomers = new Set(JSON.parse(localStorage.getItem('savedCustomers')) || []);
-
-function updateAutocomplete() {
-    const datalist = document.getElementById('customerData');
-    datalist.innerHTML = Array.from(knownCustomers).map(name => `<option value="${name}">`).join('');
-    localStorage.setItem('savedCustomers', JSON.stringify(Array.from(knownCustomers)));
-}
-
-// --- Cloud Sync ---
+// --- Cloud Sync & Auto-Update Customers ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     document.getElementById('connectionDot').className = "h-3 w-3 bg-green-500 rounded-full shadow-sm";
+    
     let pending = [], history = [];
+    let cloudCustomers = new Set(); // Temporary set to find all unique names
+
     snapshot.forEach(doc => {
         let d = doc.data(); d.id = doc.id;
-        // Sync known customers from Cloud data too
-        if (d.client) knownCustomers.add(d.client);
+        if (d.client) cloudCustomers.add(d.client); // Find customer names
         d.status === 'pending' ? pending.push(d) : history.push(d);
     });
-    updateAutocomplete();
+
+    // Update the dropdown list with every name found in the cloud
+    const datalist = document.getElementById('customerData');
+    datalist.innerHTML = Array.from(cloudCustomers).map(name => `<option value="${name}">`).join('');
+    
     render(pending, history);
 });
 
 // --- Actions ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp');
-    if (!t.value || !c.value) return alert("Missing Info!");
-
-    const custName = c.value.trim();
-    knownCustomers.add(custName);
-    updateAutocomplete();
+    if (!t.value || !c.value) return alert("Please fill in the Issue and Customer name.");
 
     await addDoc(jobsCol, { 
-        title: t.value, client: custName, priority: parseInt(p.value), 
-        status: 'pending', notes: [], createdAt: Date.now() 
+        title: t.value, 
+        client: c.value.trim(), 
+        priority: parseInt(p.value), 
+        status: 'pending', 
+        notes: [], 
+        createdAt: Date.now() 
     });
     
     t.value = ''; c.value = '';
 };
 
-// ... (Keep the rest of your toggleLog, addNote, and render functions exactly as they were) ...
-// Ensure you have the DOMContentLoaded listener to bind the Add Button:
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('addBtn').addEventListener('click', window.addJob);
-    // Bind Tab buttons here too
-    updateAutocomplete();
-});
+window.addNote = async (id, currentNotes) => {
+    const inp = document.getElementById(`n-${id}`);
+    if (!inp.value) return;
 
-// (Note: Make sure your existing render() function uses "j.client" for the name)
+    // Show Date and Time: e.g. [29/03 10:30]
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const time = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12: false});
+    
+    const timeStamp = `[${day}/${month} ${time}]`;
+    currentNotes.push(`${timeStamp} ${inp.value}`);
+    
+    await updateDoc(doc(db, "jobs", id), { notes: currentNotes });
+    inp.value = '';
+};
+
+// --- View Logic ---
+window.toggleLog = (id) => document.getElementById(`logbox-${id}`).classList.toggle('hidden');
+window.finishJob = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'completed', date: new Date().toLocaleDateString() });
+window.restoreJob = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'pending' });
+
 function render(pending, history) {
     const pV = document.getElementById('pV'), cV = document.getElementById('cV');
     pending.sort((a, b) => b.priority - a.priority || b.createdAt - a.createdAt);
+
     document.getElementById('pC').innerText = pending.length;
     document.getElementById('cC').innerText = history.length;
 
@@ -73,7 +84,7 @@ function render(pending, history) {
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 priority-${j.priority}">
             <div class="flex justify-between items-start">
                 <div onclick="window.toggleLog('${j.id}')" class="flex-1 cursor-pointer">
-                    <h3 class="font-bold text-slate-800 text-lg">${j.priority === 3 ? '🚨 ' : ''}${j.title}</h3>
+                    <h3 class="font-bold text-slate-800 text-lg leading-tight">${j.priority === 3 ? '🚨 ' : ''}${j.title}</h3>
                     <p class="text-[10px] text-blue-600 font-black uppercase tracking-wider">${j.client} <span class="ml-1 text-slate-300">▼ Log</span></p>
                 </div>
                 <button onclick="window.finishJob('${j.id}')" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md">Done</button>
@@ -93,34 +104,27 @@ function render(pending, history) {
             <div onclick="window.toggleLog('${j.id}')" class="flex justify-between items-center cursor-pointer">
                 <div>
                     <div class="font-bold text-slate-400 line-through text-sm">${j.title}</div>
-                    <div class="text-[9px] text-slate-400 font-bold uppercase">${j.client} • Fixed: ${j.date} <span class="text-blue-400 ml-1">View Log ▶</span></div>
+                    <div class="text-[9px] text-slate-400 font-bold uppercase tracking-tight">${j.client} • Done: ${j.date} <span class="text-blue-400 ml-1 font-black">View Details ▶</span></div>
                 </div>
                 <button onclick="window.restoreJob('${j.id}')" class="text-blue-500 text-[10px] font-bold px-2 py-1 bg-blue-50 rounded-lg">Restore</button>
             </div>
             <div id="logbox-${j.id}" class="hidden mt-3 pt-3 border-t bg-slate-50 p-3 rounded-lg">
-                ${j.notes.map(n => `<div class="text-[10px] text-slate-600 mb-1 pb-1 border-b border-slate-100">${n}</div>`).join('') || '<p class="text-[10px] italic text-slate-300 text-center">No notes recorded.</p>'}
+                <p class="text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center border-b pb-1">Technical History</p>
+                ${j.notes.map(n => `<div class="text-[10px] text-slate-600 mb-1 pb-1 border-b border-white">${n}</div>`).join('') || '<p class="text-[10px] italic text-slate-300 text-center">No logs recorded.</p>'}
             </div>
         </div>
     `).join('');
 }
 
-window.toggleLog = (id) => document.getElementById(`logbox-${id}`).classList.toggle('hidden');
-window.finishJob = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'completed', date: new Date().toLocaleDateString() });
-window.restoreJob = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'pending' });
-window.addNote = async (id, notes) => {
-    const inp = document.getElementById(`n-${id}`);
-    if (!inp.value) return;
-    notes.push(`[${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}] ${inp.value}`);
-    await updateDoc(doc(db, "jobs", id), { notes });
-    inp.value = '';
-};
-
-// Tabs logic
-document.getElementById('pTabBtn').onclick = () => {
-    document.getElementById('pV').classList.remove('hidden'); document.getElementById('cV').classList.add('hidden');
-    document.getElementById('pTabBtn').classList.add('tab-active'); document.getElementById('cTabBtn').classList.remove('tab-active');
-};
-document.getElementById('cTabBtn').onclick = () => {
-    document.getElementById('cV').classList.remove('hidden'); document.getElementById('pV').classList.add('hidden');
-    document.getElementById('cTabBtn').classList.add('tab-active'); document.getElementById('pTabBtn').classList.remove('tab-active');
-};
+// Bind Buttons
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('addBtn').onclick = window.addJob;
+    document.getElementById('pTabBtn').onclick = () => {
+        document.getElementById('pV').classList.remove('hidden'); document.getElementById('cV').classList.add('hidden');
+        document.getElementById('pTabBtn').classList.add('tab-active'); document.getElementById('cTabBtn').classList.remove('tab-active');
+    };
+    document.getElementById('cTabBtn').onclick = () => {
+        document.getElementById('cV').classList.remove('hidden'); document.getElementById('pV').classList.add('hidden');
+        document.getElementById('cTabBtn').classList.add('tab-active'); document.getElementById('pTabBtn').classList.remove('tab-active');
+    };
+});
