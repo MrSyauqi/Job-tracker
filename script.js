@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
@@ -23,20 +23,14 @@ let openLogsSet = new Set();
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
-    
     if (dot && statusText) {
         dot.style.backgroundColor = "#10b981"; 
         dot.classList.remove('animate-pulse');
         statusText.innerText = "DATABASE CONNECTED";
         statusText.style.color = "#10b981";
     }
-    
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    if (sortedCustomerNames.length === 0) {
-        window.updateSortOrder();
-    }
-    
+    if (sortedCustomerNames.length === 0) window.updateSortOrder();
     updateDatalist(); 
     window.renderDashboard();
 }, (error) => {
@@ -69,16 +63,28 @@ window.toggleFolder = (name) => {
     window.renderDashboard();
 };
 
-// FIX: Added missing toggleLogs function
 window.toggleLogs = (id) => {
-    if (openLogsSet.has(id)) {
-        openLogsSet.delete(id);
-    } else {
-        openLogsSet.add(id);
-    }
+    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
     window.renderDashboard();
 };
 
+// --- NEW: DELETE FUNCTIONS ---
+window.deleteJob = async (id) => {
+    if (confirm("ARE YOU SURE YOU WANT TO DELETE THIS CASE?")) {
+        await deleteDoc(doc(db, "jobs", id));
+    }
+};
+
+window.deleteLog = async (jobId, logIndex) => {
+    if (confirm("DELETE THIS SUMMARY ENTRY?")) {
+        const job = globalData.find(j => j.id === jobId);
+        const newLogs = [...job.logs];
+        newLogs.splice(logIndex, 1);
+        await updateDoc(doc(db, "jobs", jobId), { logs: newLogs });
+    }
+};
+
+// --- ACTIONS ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
     if (!t.value || !c.value) return alert("Missing Info");
@@ -149,12 +155,12 @@ window.renderDashboard = () => {
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
                     <table class="w-full text-[10px]">
                         <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase text-[9px]">
-                            <tr><th class="p-3 text-left border-r w-28">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l w-32">Ticket</th><th class="p-3 text-center w-32">Status</th></tr>
+                            <tr><th class="p-3 text-left border-r w-28">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l w-32">Ticket</th><th class="p-3 text-center w-32">Status</th><th class="p-3 text-center w-12"></th></tr>
                         </thead>
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const displayLogs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+                                const logsToMap = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
 
                                 return `
                                 <tr>
@@ -162,7 +168,12 @@ window.renderDashboard = () => {
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${displayLogs.map(l => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">${l}</div>`).join('')}
+                                            ${logsToMap.map((l, idx) => `
+                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between items-center">
+                                                    <span>${l}</span>
+                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="hidden group-hover:block text-red-500 font-black px-1 ml-2">×</button>
+                                                </div>
+                                            `).join('')}
                                             ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase underline">${isLogOpen ? '↑ Show Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
@@ -173,6 +184,9 @@ window.renderDashboard = () => {
                                     <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500">${j.ticket}</td>
                                     <td class="p-4 text-center">
                                         <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
+                                    </td>
+                                    <td class="p-4 text-center">
+                                        <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 transition-colors font-black text-lg">×</button>
                                     </td>
                                 </tr>`;
                             }).join('')}
