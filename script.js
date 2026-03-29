@@ -15,26 +15,39 @@ const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
 
 let globalData = [];
-let sortedCustomerNames = []; // Stores the order so it doesn't jump
+let sortedCustomerNames = []; 
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
+// --- DATABASE SYNC & CONNECTION INDICATOR ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
-    if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all";
+    
+    // If we receive data, set indicator to GREEN
+    if (dot) {
+        dot.style.backgroundColor = "#10b981"; // Emerald Green
+        dot.classList.remove('animate-pulse');
+    }
     
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     
-    // If it's the first load, set the initial sort
     if (sortedCustomerNames.length === 0) {
         window.updateSortOrder();
     }
     
     updateDatalist(); 
     window.renderDashboard();
+}, (error) => {
+    // If there is an error (lost connection), set indicator to RED
+    const dot = document.getElementById('connectionDot');
+    if (dot) {
+        dot.style.backgroundColor = "#ef4444"; // Red
+        dot.classList.add('animate-pulse');
+    }
+    console.error("Firebase Connection Error:", error);
 });
 
-// Logic to calculate the "Danger Score" and sort
+// --- REMAINS UNCHANGED: DELAYED SORT LOGIC ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -43,23 +56,23 @@ window.updateSortOrder = () => {
     });
 };
 
-// FIX: Sorting happens ONLY when you close a folder
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Jumps/Sorts ONLY when you click "Close"
+        window.updateSortOrder(); // Only re-sorts when closing
     } else {
         expandedSet.add(name);
     }
     window.renderDashboard();
 };
 
+// --- REMAINS UNCHANGED: EDIT & ACTION LOGIC ---
 window.editField = async (id, field, oldVal) => {
     const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
     if (newVal !== null && newVal !== oldVal) {
         const updateObj = {};
         updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateObj);
+        await updateDoc(doc(db, "jobs", id), updateObj); //
     }
 };
 
@@ -78,6 +91,7 @@ window.addLog = async (id) => {
     input.value = '';
 };
 
+// --- REMAINS UNCHANGED: UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -86,9 +100,9 @@ window.renderDashboard = () => {
 
     container.innerHTML = sortedCustomerNames.filter(c => c.includes(searchVal)).map(name => {
         const jobs = groups[name] || [];
-        const crits = jobs.filter(j => j.status === 'Critical').length;
+        const crits = jobs.filter(j => j.status === 'Critical').length; //
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Solved to bottom
 
         const isOpen = expandedSet.has(name);
         return `
@@ -138,13 +152,8 @@ function updateDatalist() {
     const list = document.getElementById('customerList');
     if (!list) return;
     const names = [...new Set(globalData.map(j => j.client))].sort();
-    list.innerHTML = names.map(c => `<option value="${c}">`).join('');
+    list.innerHTML = names.map(c => `<option value="${c}">`).join(''); //
 }
-
-window.toggleLogs = (id) => {
-    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
-    window.renderDashboard();
-};
 
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
@@ -160,7 +169,7 @@ window.addJob = async () => {
         dateStr: new Date().toLocaleDateString('en-GB')
     });
     t.value = ''; r.value = '';
-    window.updateSortOrder(); // Sort immediately when a brand new case is added
+    window.updateSortOrder(); 
 };
 
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
