@@ -19,7 +19,7 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC ---
+// --- DATABASE SYNC & STATUS ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
@@ -30,14 +30,14 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     }
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     
-    // Only sort on first load, otherwise wait for folder minimize
+    // Initial load sort only
     if (sortedCustomerNames.length === 0) window.updateSortOrder();
     
     updateDatalist(); 
     window.renderDashboard();
 });
 
-// --- LOGIC: SORTING ONLY ON MINIMIZE ---
+// --- LOGIC: DELAYED SORTING ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -49,8 +49,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        // CRITICAL: The jump/sort happens ONLY here when you close the tab
-        window.updateSortOrder(); 
+        window.updateSortOrder(); // Sort triggers ONLY when closing
     } else {
         expandedSet.add(name);
     }
@@ -62,18 +61,17 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-window.editField = async (id, field, oldVal) => {
-    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
-    if (newVal !== null && newVal !== oldVal) {
-        const updateObj = {};
-        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateObj);
-    }
-};
-
 // --- ACTIONS ---
 window.deleteJob = async (id) => {
     if (confirm("DELETE THIS CASE PERMANENTLY?")) await deleteDoc(doc(db, "jobs", id));
+};
+
+// RESTORED DELETE SUMMARY LOGIC
+window.deleteLog = async (jobId, logIndex) => {
+    const job = globalData.find(j => j.id === jobId);
+    const newLogs = [...job.logs];
+    newLogs.splice(logIndex, 1);
+    await updateDoc(doc(db, "jobs", jobId), { logs: newLogs });
 };
 
 window.addLog = async (id) => {
@@ -87,11 +85,20 @@ window.addLog = async (id) => {
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
-    // This updates the DB but we don't call updateSortOrder, so it stays in place
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
+    // No sorting call here ensures stability while tab is open
 };
 
-// --- RENDERER (WITH VERTICAL MIDDLE ALIGN) ---
+window.editField = async (id, field, oldVal) => {
+    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
+    if (newVal !== null && newVal !== oldVal) {
+        const updateObj = {};
+        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateObj);
+    }
+};
+
+// --- RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -102,8 +109,6 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        
-        // Internal sort stays stable until closed
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
@@ -132,7 +137,8 @@ window.renderDashboard = () => {
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const logs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+                                const logsArr = j.logs || [];
+                                const displayLogs = isLogOpen ? logsArr : (logsArr.length > 0 ? [logsArr[logsArr.length - 1]] : []);
 
                                 return `
                                 <tr>
@@ -140,8 +146,15 @@ window.renderDashboard = () => {
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${logs.map((l) => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]"><span>${l}</span></div>`).join('')}
-                                            ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
+                                            ${displayLogs.map((l, idx) => {
+                                                const actualIndex = isLogOpen ? idx : logsArr.length - 1;
+                                                return `
+                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between items-center">
+                                                    <span>${l}</span>
+                                                    <button onclick="window.deleteLog('${j.id}', ${actualIndex})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
+                                                </div>`;
+                                            }).join('')}
+                                            ${logsArr.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none">
