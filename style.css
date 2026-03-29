@@ -1,11 +1,10 @@
-table { border-spacing: 0; width: 100%; }
-th { border-bottom: 2px solid #e2e8f0; }
-td { border-right: 1px solid #f1f5f9; }
-td:last-child { border-right: none; }
+body { letter-spacing: -0.01em; -webkit-tap-highlight-color: transparent; }
+table { border-spacing: 0; width: 100%; border-collapse: collapse; }
+th, td { border-color: #f1f5f9; }
+input:focus { border-color: #3b82f6 !important; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
-/* Animation for adding new rows */
-tr { animation: fadeIn 0.3s ease-in-out; }
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+/* Hide scrollbars but allow scrolling */
+.overflow-x-auto::-webkit-scrollbar { height: 4px; }
+.overflow-x-auto::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
