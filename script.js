@@ -13,94 +13,120 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
+let globalData = [];
+let expandedCustomers = new Set();
 
-// Update Date/Time Display
-const dt = new Date();
-document.getElementById('currentDateTime').innerText = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + " | " + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// Set Date Header
+document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
-    document.getElementById('connectionDot').className = "h-4 w-4 bg-green-500 rounded-full";
-    let pending = [], history = [], allData = [];
-    let customers = new Set();
-
-    snapshot.forEach(doc => {
-        let d = doc.data(); d.id = doc.id;
-        allData.push(d);
-        if (d.client) customers.add(d.client.toUpperCase());
-        d.status === 'Solved' ? history.push(d) : pending.push(d);
-    });
-
-    const datalist = document.getElementById('customerData');
-    if(datalist) datalist.innerHTML = Array.from(customers).map(name => `<option value="${name}">`).join('');
-    
-    renderTable(pending, document.getElementById('pV'));
-    renderTable(history, document.getElementById('cV'));
-    renderCharts(allData);
+    document.getElementById('connectionDot').classList.replace('bg-red-500', 'bg-green-500');
+    globalData = [];
+    snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; globalData.push(d); });
+    renderDashboard();
 });
 
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Enter Customer & Issue");
+    if (!t.value || !c.value) return alert("REQUIRED: Customer & Issue Summary");
     await addDoc(jobsCol, { 
-        title: t.value, 
-        client: c.value.toUpperCase(), 
-        priority: p.value, 
-        ticket: r.value || "",
-        status: p.value === 'Solved' ? 'Solved' : 'Pending', 
+        title: t.value.toUpperCase(), 
+        client: c.value.trim().toUpperCase(), 
+        priority: parseInt(p.value), 
+        ticket: r.value || "N/A",
+        status: parseInt(p.value) === 1 ? 'Solved' : 'Pending', 
+        remarks: "",
         createdAt: Date.now(),
         dateStr: new Date().toLocaleDateString('en-GB')
     });
     t.value = ''; c.value = ''; r.value = '';
 };
 
-window.solveJob = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'Solved' });
-window.deleteJob = async (id) => { if(confirm("Delete entry?")) await deleteDoc(doc(db, "jobs", id)); };
-
-function renderTable(data, container) {
-    container.innerHTML = data.map(j => {
-        const statusColor = j.status === 'Solved' ? 'bg-white text-slate-600' : 'bg-red-600 text-white';
-        const statusText = j.status === 'Critical' ? 'Pending - Critical' : j.status;
-        
-        return `
-        <tr class="border-b text-[12px] hover:bg-slate-50 transition">
-            <td class="p-4 border-r font-bold text-slate-700 bg-slate-50/50 uppercase">${j.client}</td>
-            <td class="p-4 border-r text-slate-500">${j.dateStr}</td>
-            <td class="p-4 border-r text-slate-700 leading-relaxed">${j.title}</td>
-            <td class="p-4 border-r">
-                <div class="${statusColor} p-2 font-bold text-center rounded text-[10px] uppercase">${statusText}</div>
-            </td>
-            <td class="p-4 text-center">
-                <div class="text-[10px] font-mono mb-2">${j.ticket || '-'}</div>
-                <div class="flex justify-center gap-2">
-                    ${j.status !== 'Solved' ? `<button onclick="window.solveJob('${j.id}')" class="text-emerald-600 font-bold border border-emerald-600 px-2 py-1 rounded hover:bg-emerald-50 text-[10px]">Solve</button>` : ''}
-                    <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 text-[10px]">×</button>
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
-}
-
-// Same switchTab and renderCharts logic from previous version...
-window.switchTab = (btnId, viewId) => {
-    ['pTabBtn', 'cTabBtn', 'sTabBtn'].forEach(t => document.getElementById(t).className = "px-8 py-4 border-b-4 border-transparent text-slate-400");
-    ['pV', 'cV', 'sV'].forEach(v => document.getElementById(v).classList.add('hidden'));
-    document.getElementById(btnId).className = "px-8 py-4 border-b-4 border-blue-600 text-blue-600";
-    document.getElementById(viewId).classList.remove('hidden');
+window.updateRemark = async (id) => {
+    const val = document.getElementById(`rem-${id}`).value;
+    await updateDoc(doc(db, "jobs", id), { remarks: val });
 };
 
-function renderCharts(data) {
-    const sV = document.getElementById('sV');
-    const stats = data.reduce((acc, job) => {
-        if (!acc[job.client]) acc[job.client] = { p: 0, c: 0, total: 0 };
-        job.status === 'Solved' ? acc[job.client].c++ : acc[job.client].p++;
-        acc[job.client].total++;
+window.setSolved = async (id) => await updateDoc(doc(db, "jobs", id), { status: 'Solved', priority: 1 });
+window.deleteJob = async (id) => { if(confirm("Permanently delete record?")) await deleteDoc(doc(db, "jobs", id)); };
+
+window.toggleCustomer = (client) => {
+    expandedCustomers.has(client) ? expandedCustomers.delete(client) : expandedCustomers.add(client);
+    renderDashboard();
+};
+
+window.renderDashboard = () => {
+    const container = document.getElementById('customerGrid');
+    const searchTerm = document.getElementById('search').value.toUpperCase();
+    
+    // Group Data by Customer
+    const groups = globalData.reduce((acc, job) => {
+        if (!acc[job.client]) acc[job.client] = [];
+        acc[job.client].push(job);
         return acc;
     }, {});
-    sV.innerHTML = Object.entries(stats).map(([client, s]) => {
-        const p = Math.round((s.c / s.total) * 100);
-        return `<div class="bg-white p-4 border rounded shadow-sm flex items-center justify-between">
-            <div class="font-bold uppercase text-xs">${client}</div>
-            <div class="text-[10px] text-slate-400">Solved: ${s.c} / ${s.total} (${p}%)</div>
-        </div>`;
+
+    const sortedClients = Object.keys(groups).sort().filter(c => c.includes(searchTerm));
+
+    container.innerHTML = sortedClients.map(client => {
+        const jobs = groups[client].sort((a, b) => b.priority - a.priority); // High Priority first
+        const pendingCount = jobs.filter(j => j.status !== 'Solved').length;
+        const solvedCount = jobs.filter(j => j.status === 'Solved').length;
+        const isExpanded = expandedCustomers.has(client);
+
+        return `
+            <div class="border-b">
+                <div onclick="window.toggleCustomer('${client}')" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition">
+                    <div class="flex items-center gap-4">
+                        <span class="text-lg font-black text-slate-800 w-32 truncate">${client}</span>
+                        <div class="flex gap-2">
+                            <span class="${pendingCount > 0 ? 'bg-red-600' : 'bg-slate-200'} text-white text-[10px] px-2 py-0.5 rounded font-bold">${pendingCount} PENDING</span>
+                            <span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded font-bold">${solvedCount} SOLVED</span>
+                        </div>
+                    </div>
+                    <span class="text-slate-400 font-bold">${isExpanded ? '▲' : '▼'}</span>
+                </div>
+
+                <div class="${isExpanded ? '' : 'hidden'} bg-slate-50 border-t overflow-x-auto">
+                    <table class="w-full text-[11px] border-collapse">
+                        <thead>
+                            <tr class="bg-slate-200/50 text-slate-500 uppercase font-black border-b">
+                                <th class="p-3 text-left w-24">Date</th>
+                                <th class="p-3 text-left">Issue Summary</th>
+                                <th class="p-3 text-center w-24">Status</th>
+                                <th class="p-3 text-left w-32">Ticket</th>
+                                <th class="p-3 text-center w-24">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${jobs.map(j => `
+                                <tr class="border-b bg-white hover:bg-blue-50/30">
+                                    <td class="p-3 text-slate-400 font-bold">${j.dateStr}</td>
+                                    <td class="p-3">
+                                        <div class="font-bold text-slate-800 mb-1">${j.title}</div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[9px] text-slate-400 font-black uppercase">Remark:</span>
+                                            <input id="rem-${j.id}" onblur="window.updateRemark('${j.id}')" value="${j.remarks}" placeholder="Add action taken..." class="bg-transparent border-b border-dotted border-slate-300 w-full outline-none focus:border-blue-500 text-blue-600">
+                                        </div>
+                                    </td>
+                                    <td class="p-3">
+                                        <div class="rounded px-2 py-1 font-black text-center text-[9px] uppercase ${j.status === 'Solved' ? 'bg-emerald-100 text-emerald-700' : (j.priority === 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-orange-100 text-orange-700')}">
+                                            ${j.status === 'Solved' ? 'Solved' : (j.priority === 3 ? 'Critical' : 'Pending')}
+                                        </div>
+                                    </td>
+                                    <td class="p-3 font-mono text-slate-500 font-bold">${j.ticket}</td>
+                                    <td class="p-3 text-center">
+                                        <div class="flex justify-center gap-2">
+                                            ${j.status !== 'Solved' ? `<button onclick="window.setSolved('${j.id}')" class="text-emerald-500 hover:scale-110">✔</button>` : ''}
+                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500">🗑</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
     }).join('');
-}
+};
