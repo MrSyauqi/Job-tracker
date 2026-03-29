@@ -13,63 +13,48 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
-
 let globalData = [];
 let expandedCustomers = new Set();
 
-// UI Date Setup
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-// REAL-TIME LISTENER
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     document.getElementById('connectionDot').className = "h-4 w-4 bg-green-500 rounded-full shadow-sm";
-    document.getElementById('statusText').innerText = "CONNECTED";
-    document.getElementById('statusText').className = "text-xs font-bold text-emerald-500 uppercase";
-    
     globalData = [];
     snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; globalData.push(d); });
     renderDashboard();
 });
 
-// ADD NEW RECORD
 window.addJob = async (e) => {
-    const btn = e.target;
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
+    if (!t.value || !c.value) return alert("Fill Customer and Issue");
     
-    if (!t.value.trim() || !c.value.trim()) return alert("⚠️ Error: Enter Customer and Issue.");
-
-    btn.disabled = true;
-    btn.innerText = "SYNCHRONIZING...";
-
-    try {
-        await addDoc(jobsCol, { 
-            title: t.value.trim().toUpperCase(), 
-            client: c.value.trim().toUpperCase(), 
-            priority: parseInt(p.value), 
-            ticket: r.value.trim() || "N/A",
-            status: parseInt(p.value) === 1 ? 'Solved' : 'Pending', 
-            remarks: "",
-            createdAt: Date.now(),
-            dateStr: new Date().toLocaleDateString('en-GB')
-        });
-        t.value = ''; c.value = ''; r.value = '';
-    } catch (err) { alert("Save Error: " + err.message); } 
-    finally { btn.disabled = false; btn.innerText = "REGISTER TECHNICAL RECORD"; }
+    await addDoc(jobsCol, { 
+        title: t.value.toUpperCase(), client: c.value.trim().toUpperCase(), 
+        priority: parseInt(p.value), ticket: r.value || "N/A",
+        status: parseInt(p.value) === 1 ? 'Solved' : (parseInt(p.value) === 3 ? 'Critical' : 'Pending'), 
+        logs: [], createdAt: Date.now(), dateStr: new Date().toLocaleDateString('en-GB')
+    });
+    t.value = ''; c.value = ''; r.value = '';
 };
 
-// TOGGLE STATUS DIRECTLY
-window.toggleStatus = async (id, currentStatus) => {
-    const newStatus = currentStatus === 'Solved' ? 'Pending' : 'Solved';
-    const newPriority = newStatus === 'Solved' ? 1 : 2; 
-    await updateDoc(doc(db, "jobs", id), { status: newStatus, priority: newPriority });
+// Log Remark Logic
+window.addLog = async (id, existingLogs) => {
+    const input = document.getElementById(`log-in-${id}`);
+    if (!input.value.trim()) return;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newEntry = `[${time}] ${input.value.toUpperCase()}`;
+    await updateDoc(doc(db, "jobs", id), { logs: [...existingLogs, newEntry] });
+    input.value = '';
 };
 
-window.updateRemark = async (id) => {
-    const val = document.getElementById(`rem-${id}`).value;
-    await updateDoc(doc(db, "jobs", id), { remarks: val.toUpperCase() });
+window.changeStatus = async (id) => {
+    const choice = prompt("SET STATUS:\n1. PENDING\n2. SOLVED\n3. CRITICAL\n4. DELETE");
+    if (choice === "1") await updateDoc(doc(db, "jobs", id), { status: 'Pending', priority: 2 });
+    else if (choice === "2") await updateDoc(doc(db, "jobs", id), { status: 'Solved', priority: 1 });
+    else if (choice === "3") await updateDoc(doc(db, "jobs", id), { status: 'Critical', priority: 3 });
+    else if (choice === "4") if(confirm("Delete?")) await deleteDoc(doc(db, "jobs", id));
 };
-
-window.deleteJob = async (id) => { if(confirm("Delete this record?")) await deleteDoc(doc(db, "jobs", id)); };
 
 window.toggleCustomer = (client) => {
     expandedCustomers.has(client) ? expandedCustomers.delete(client) : expandedCustomers.add(client);
@@ -78,67 +63,57 @@ window.toggleCustomer = (client) => {
 
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
-    const searchVal = document.getElementById('search').value.toUpperCase();
-    
-    const groups = globalData.reduce((acc, job) => {
-        if (!acc[job.client]) acc[job.client] = [];
-        acc[job.client].push(job);
-        return acc;
+    const search = document.getElementById('search').value.toUpperCase();
+    const groups = globalData.reduce((acc, j) => {
+        if (!acc[j.client]) acc[j.client] = [];
+        acc[j.client].push(j); return acc;
     }, {});
 
-    const sortedClients = Object.keys(groups).sort().filter(c => c.includes(searchVal));
-
-    container.innerHTML = sortedClients.map(client => {
+    container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(search)).map(client => {
         const jobs = groups[client].sort((a, b) => b.priority - a.priority);
-        const pending = jobs.filter(j => j.status !== 'Solved').length;
-        const solved = jobs.filter(j => j.status === 'Solved').length;
         const isExp = expandedCustomers.has(client);
+        const pCount = jobs.filter(j => j.status !== 'Solved').length;
 
         return `
             <div class="border-b">
-                <div onclick="window.toggleCustomer('${client}')" class="flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50 transition">
-                    <div class="flex items-center gap-6">
+                <div onclick="window.toggleCustomer('${client}')" class="flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50">
+                    <div class="flex items-center gap-4">
                         <span class="text-xl font-black text-slate-800 tracking-tighter">${client}</span>
-                        <div class="flex gap-2">
-                            <span class="${pending > 0 ? 'bg-red-600 animate-pulse' : 'bg-slate-200 text-slate-500'} text-white text-[9px] px-2 py-1 rounded-sm font-black uppercase">${pending} Pending</span>
-                            <span class="bg-emerald-500 text-white text-[9px] px-2 py-1 rounded-sm font-black uppercase">${solved} Solved</span>
-                        </div>
+                        <span class="${pCount > 0 ? 'bg-red-600' : 'bg-slate-300'} text-white text-[9px] px-2 py-1 rounded font-bold">${pCount} PENDING</span>
                     </div>
-                    <span class="text-slate-300 font-black text-[10px]">${isExp ? 'CLOSE' : 'OPEN'}</span>
+                    <span class="text-slate-300 text-[10px] font-bold">${isExp ? 'CLOSE' : 'OPEN'}</span>
                 </div>
 
-                <div class="${isExp ? '' : 'hidden'} bg-slate-50 border-t overflow-x-auto">
-                    <table class="w-full text-[11px] border-collapse bg-white">
-                        <thead class="bg-slate-100 text-slate-500 uppercase font-black text-[9px] border-b">
+                <div class="${isExp ? '' : 'hidden'} overflow-x-auto bg-white">
+                    <table class="w-full text-[11px] border-collapse">
+                        <thead class="bg-slate-50 text-[9px] font-black uppercase text-slate-400 border-b">
                             <tr>
                                 <th class="p-3 text-left w-24 border-r">Date</th>
-                                <th class="p-3 text-left border-r">Technical Issue & Action Remarks</th>
-                                <th class="p-3 text-center w-32 border-r">Status (Toggle)</th>
-                                <th class="p-3 text-left w-32">ID/Ticket</th>
+                                <th class="p-3 text-left border-r">Issue & History Logs</th>
+                                <th class="p-3 text-center w-32 border-r">Status</th>
+                                <th class="p-3 text-left w-32">Ticket ID</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody class="divide-y">
                             ${jobs.map(j => `
-                                <tr class="hover:bg-blue-50/20 group">
+                                <tr class="hover:bg-slate-50/50">
                                     <td class="p-3 font-bold text-slate-400 border-r">${j.dateStr}</td>
                                     <td class="p-3 border-r">
                                         <div class="font-black text-slate-800 uppercase mb-2">${j.title}</div>
-                                        <div class="flex items-center gap-3 bg-slate-50 p-2 rounded border border-dashed border-slate-200">
-                                            <span class="text-[8px] font-black text-blue-500 uppercase whitespace-nowrap">Remark:</span>
-                                            <input id="rem-${j.id}" onblur="window.updateRemark('${j.id}')" value="${j.remarks}" placeholder="Action taken..." class="bg-transparent w-full text-[10px] font-bold text-slate-600 outline-none">
+                                        <div class="space-y-1 mb-2">
+                                            ${(j.logs || []).map(log => `<div class="bg-blue-50 text-blue-700 p-1 px-2 rounded-sm text-[10px] font-bold border-l-2 border-blue-400">${log}</div>`).join('')}
+                                        </div>
+                                        <div class="flex gap-1">
+                                            <input id="log-in-${j.id}" placeholder="ADD UPDATE..." class="flex-1 bg-slate-50 border p-1 px-2 rounded text-[10px] outline-none focus:border-blue-400 uppercase">
+                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(j.logs || [])})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold">ADD</button>
                                         </div>
                                     </td>
                                     <td class="p-3 border-r text-center">
-                                        <button onclick="window.toggleStatus('${j.id}', '${j.status}')" 
-                                                class="w-full rounded-sm py-2 font-black text-[9px] uppercase shadow-sm transition active:scale-90
-                                                ${j.status === 'Solved' ? 'bg-emerald-500 text-white' : (j.priority === 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-orange-500 text-white')}">
-                                            ${j.status === 'Solved' ? 'SOLVED' : (j.priority === 3 ? 'CRITICAL' : 'PENDING')}
+                                        <button onclick="window.changeStatus('${j.id}')" class="w-full py-2 rounded-sm font-black text-[9px] uppercase shadow-sm ${j.status === 'Solved' ? 'bg-emerald-500 text-white' : (j.status === 'Critical' ? 'bg-red-600 text-white animate-pulse' : 'bg-orange-500 text-white')}">
+                                            ${j.status}
                                         </button>
                                     </td>
-                                    <td class="p-3 font-mono text-slate-400 font-bold flex justify-between items-center">
-                                        <span>${j.ticket}</span>
-                                        <button onclick="window.deleteJob('${j.id}')" class="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-2 font-bold">✕</button>
-                                    </td>
+                                    <td class="p-3 font-mono text-slate-400 font-bold uppercase">${j.ticket}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
