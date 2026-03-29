@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WORK TRACK PRO</title>
+    <title>SYAUQI CASE TRACKER</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -11,7 +11,9 @@
     <div class="max-w-6xl mx-auto">
         <header class="bg-white p-6 rounded-t-xl border-b flex justify-between items-center shadow-sm">
             <div>
-                <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1 uppercase tracking-tighter">Work Track</h1>
+                <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1 uppercase tracking-tighter">
+                    Syauqi <span class="font-black">Case Tracker</span>
+                </h1>
                 <p id="currentDateTime" class="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest"></p>
             </div>
             <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
@@ -26,12 +28,14 @@
                 <option value="2" selected>PENDING</option>
                 <option value="1">SOLVED</option>
             </select>
-            <button onclick="addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">Register Technical Record</button>
+            <button onclick="addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">
+                Register Case
+            </button>
         </div>
 
         <div class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
             <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
-                <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Site Fleet History</h2>
+                <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Case Overall</h2>
                 <input id="search" onkeyup="renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none">
             </div>
             <div id="customerGrid" class="divide-y"></div>
