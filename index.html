@@ -3,58 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SYAUQI WORKTRACK PRO</title>
+    <title>SYAUQI TECHNICAL TRACKER</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-100 p-2 md:p-6">
-    <div class="max-w-5xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
-        <div class="p-6 border-b flex justify-between items-center bg-white">
+<body class="bg-slate-100 p-2 md:p-6 font-sans">
+    <div class="max-w-6xl mx-auto">
+        <header class="bg-white p-6 rounded-t-xl border-b flex justify-between items-center shadow-sm">
             <div>
                 <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1">Work Track</h1>
-                <p id="currentDateTime" class="text-xs text-slate-500 mt-2 font-semibold uppercase"></p>
+                <p id="currentDateTime" class="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest"></p>
             </div>
-            <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full"></div>
-        </div>
+            <div class="flex items-center gap-4">
+                <div id="stats" class="text-right hidden md:block">
+                    <p class="text-[9px] font-black text-slate-400 uppercase">System Status</p>
+                    <p class="text-xs font-bold text-emerald-500">DATABASE CONNECTED</p>
+                </div>
+                <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full animate-pulse"></div>
+            </div>
+        </header>
 
-        <div class="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-4 gap-3 border-b">
-            <input id="jc" list="customerData" placeholder="Customer Name" class="p-2 border rounded text-sm font-bold uppercase">
-            <input id="jt" placeholder="Issue Summary (Technical)" class="p-2 border rounded text-sm md:col-span-2">
-            <div class="flex gap-2">
-                <input id="rt" placeholder="Report ID/Ticket" class="w-2/3 p-2 border rounded text-sm">
-                <select id="jp" class="w-1/3 p-2 border rounded text-sm font-bold">
-                    <option value="Pending">Pending</option>
-                    <option value="Solved">Solved</option>
-                    <option value="Critical">Critical</option>
-                </select>
-            </div>
-            <button onclick="window.addJob()" class="md:col-start-4 bg-slate-800 text-white py-2 rounded text-sm font-bold hover:bg-slate-700 transition">Add Entry</button>
+        <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
+            <input id="jc" list="customerData" placeholder="CUSTOMER (e.g. INTEL_PG8)" class="p-3 border rounded text-sm font-black uppercase bg-slate-50">
+            <input id="jt" placeholder="ISSUE SUMMARY / TECHNICAL FAULT" class="p-3 border rounded text-sm md:col-span-2 uppercase">
+            <input id="rt" placeholder="REPORT ID / TICKET" class="p-3 border rounded text-sm font-mono">
+            <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50">
+                <option value="3">CRITICAL / URGENT</option>
+                <option value="2" selected>NORMAL / PENDING</option>
+                <option value="1">SOLVED / ARCHIVE</option>
+            </select>
+            <button onclick="window.addJob()" class="md:col-span-5 bg-slate-800 text-white py-3 rounded font-black text-xs uppercase tracking-widest hover:bg-black transition">Add Technical Record</button>
             <datalist id="customerData"></datalist>
         </div>
 
-        <div class="flex bg-slate-50 border-b text-[11px] font-black uppercase">
-            <button id="pTabBtn" onclick="window.switchTab('pTabBtn', 'pV')" class="px-8 py-4 border-b-4 border-blue-600 text-blue-600">Active Jobs</button>
-            <button id="cTabBtn" onclick="window.switchTab('cTabBtn', 'cV')" class="px-8 py-4 border-b-4 border-transparent text-slate-400">History / Archive</button>
-            <button id="sTabBtn" onclick="window.switchTab('sTabBtn', 'sV')" class="px-8 py-4 border-b-4 border-transparent text-slate-400">Analytics 📊</button>
+        <div id="mainContainer" class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
+            <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Customer Fleet & Service History</h2>
+                <input id="search" onkeyup="window.renderDashboard()" placeholder="FILTER CUSTOMER..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold">
+            </div>
+            <div id="customerGrid" class="divide-y">
+                </div>
         </div>
-
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                    <tr class="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b">
-                        <th class="p-4 border-r w-32">Customers</th>
-                        <th class="p-4 border-r w-28">Date</th>
-                        <th class="p-4 border-r">Issue Summary</th>
-                        <th class="p-4 border-r w-32">Status</th>
-                        <th class="p-4 w-32 text-center">Ticket/Action</th>
-                    </tr>
-                </thead>
-                <tbody id="pV"></tbody>
-                <tbody id="cV" class="hidden opacity-75"></tbody>
-            </table>
-        </div>
-        
-        <div id="sV" class="hidden p-6 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50"></div>
     </div>
     <script type="module" src="script.js"></script>
 </body>
