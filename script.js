@@ -18,6 +18,7 @@ let globalData = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
+// --- REAL-TIME LISTENER ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all";
@@ -26,6 +27,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     window.renderDashboard();
 });
 
+// --- CUSTOMER AUTO-SUGGEST ---
 function updateDatalist() {
     const list = document.getElementById('customerList');
     if (!list) return;
@@ -33,9 +35,10 @@ function updateDatalist() {
     list.innerHTML = names.map(c => `<option value="${c}">`).join('');
 }
 
+// --- ACTIONS ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Missing Info");
+    if (!t.value || !c.value) return alert("Fill Name and Issue");
     await addDoc(jobsCol, {
         title: t.value.toUpperCase(),
         client: c.value.trim().toUpperCase(),
@@ -55,15 +58,6 @@ window.cycleStatus = async (id, current) => {
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-window.editField = async (id, field, val) => {
-    const res = prompt(`Edit ${field.toUpperCase()}:`, val);
-    if (res && res !== val) {
-        const update = {};
-        update[field === 'date' ? 'dateStr' : 'ticket'] = res.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), update);
-    }
-};
-
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input.value) return;
@@ -73,16 +67,33 @@ window.addLog = async (id) => {
     input.value = '';
 };
 
-// --- RENDERER ---
+// --- TOGGLE LOGIC ---
+window.toggleFolder = (name) => {
+    if (expandedSet.has(name)) {
+        expandedSet.delete(name);
+    } else {
+        expandedSet.add(name);
+    }
+    window.renderDashboard();
+};
+
+window.toggleLogs = (id) => {
+    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
+    window.renderDashboard();
+};
+
+// --- UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
+    if (!container) return;
+
     const searchVal = document.getElementById('search').value.toUpperCase();
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
-    // (1) DANGER FIRST SORTING
+    // Danger Sorting: Most Critical customers to the top
     const sortedNames = Object.keys(groups).sort((a, b) => {
         const score = (c) => groups[c].filter(j => j.status === 'Critical').length * 100 + groups[c].filter(j => j.status === 'Pending').length;
-        return score(b) - score(a);
+        return score(b) - score(score(a));
     });
 
     container.innerHTML = sortedNames.filter(c => c.includes(searchVal)).map(name => {
@@ -90,10 +101,11 @@ window.renderDashboard = () => {
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
         
-        // (1) SOLVED AUTO MOVE TO BOTTOM
+        // Solved cases auto-move to bottom
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
+
         return `
             <div class="border-b">
                 <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
@@ -103,8 +115,11 @@ window.renderDashboard = () => {
                             ${pends > 0 ? `<span class="bg-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded">${pends} PEND</span>` : ''}
                         </div>
                     </div>
-                    <span class="text-[9px] font-bold px-3 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'Close' : 'Open'}</span>
+                    <button class="text-[9px] font-bold px-4 py-1.5 bg-slate-100 rounded text-slate-500 uppercase hover:bg-slate-800 hover:text-white transition">
+                        ${isOpen ? 'CLOSE' : 'OPEN'}
+                    </button>
                 </div>
+
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
                     <table class="w-full text-[10px]">
                         <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase tracking-widest text-[9px]">
@@ -118,21 +133,21 @@ window.renderDashboard = () => {
                         <tbody class="divide-y">
                             ${jobs.map(j => `
                                 <tr>
-                                    <td onclick="editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
+                                    <td class="p-4 border-r font-bold text-slate-400">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
                                             ${(openLogsSet.has(j.id) ? j.logs : (j.logs.slice(-1))).map(l => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">${l}</div>`).join('')}
-                                            ${j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase">${openLogsSet.has(j.id)?'↑ Show Less':'↓ View All'}</button>` : ''}
+                                            ${j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase underline">${openLogsSet.has(j.id)?'↑ Show Less':'↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50">
                                             <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td onclick="editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
+                                    <td class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
                                     <td class="p-4 text-center">
-                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer shadow-sm transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                             ${j.status}
                                         </div>
                                     </td>
@@ -142,17 +157,6 @@ window.renderDashboard = () => {
                 </div>
             </div>`;
     }).join('');
-};
-
-// Global toggle functions to prevent "Cannot Open" errors
-window.toggleFolder = (name) => {
-    expandedSet.has(name) ? expandedSet.delete(name) : expandedSet.add(name);
-    window.renderDashboard();
-};
-
-window.toggleLogs = (id) => {
-    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
-    window.renderDashboard();
 };
 
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
