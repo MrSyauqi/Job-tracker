@@ -19,20 +19,17 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC & STATUS INDICATOR ---
+// --- DATABASE SYNC & STATUS ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#10b981"; 
-        statusText.innerText = "DATABASE CONNECTOR"; // Added explicit label
+        statusText.innerText = "DATABASE CONNECTED";
         statusText.style.color = "#10b981";
     }
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    
-    // Initial sort if first load
     if (sortedCustomerNames.length === 0) window.updateSortOrder();
-    
     updateDatalist(); 
     window.renderDashboard();
 }, (error) => {
@@ -40,11 +37,12 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#ef4444"; 
-        statusText.innerText = "DISCONNECTED";
+        statusText.innerText = "DATABASE DISCONNECTED";
+        statusText.style.color = "#ef4444";
     }
 });
 
-// --- UPDATED SORTING LOGIC ---
+// --- CORE LOGIC ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -56,8 +54,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        // Only trigger a re-sort when the folder is CLOSED
-        window.updateSortOrder(); 
+        window.updateSortOrder(); // Jumps to correct sort order only when closing
     } else {
         expandedSet.add(name);
     }
@@ -84,9 +81,10 @@ window.deleteLog = async (jobId, logIndex) => {
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input || !input.value) return;
-    // Log entry is now just clean text without timestamp
+    const job = globalData.find(j => j.id === id);
+    // NEW: Clean entry without time or numbers
     const newEntry = input.value.toUpperCase();
-    await updateDoc(doc(db, "jobs", id), { logs: [...(globalData.find(j => j.id === id).logs || []), newEntry] });
+    await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
     input.value = '';
 };
 
@@ -104,16 +102,16 @@ window.addJob = async () => {
         dateStr: new Date().toLocaleDateString('en-GB')
     });
     t.value = ''; r.value = '';
+    window.updateSortOrder();
 };
 
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
-    // Note: No updateSortOrder here, so the case stays put until closed
 };
 
-// --- UI RENDERER ---
+// --- RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -124,14 +122,13 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        
-        // Internal case sorting within the folder
+        // Solved cases always stay at the bottom of their folder
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
         return `
             <div class="border-b">
-                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
+                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50">
                     <div class="flex items-center gap-3">
                         <span class="text-lg font-black uppercase text-slate-800">${name}</span>
                         <div class="flex gap-1">
@@ -141,7 +138,7 @@ window.renderDashboard = () => {
                     </div>
                     <button class="text-[9px] font-bold px-4 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'CLOSE' : 'OPEN'}</button>
                 </div>
-                <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
+                <div class="${isOpen ? '' : 'hidden'} bg-white border-t">
                     <table class="w-full text-[10px] table-fixed">
                         <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase text-[9px]">
                             <tr>
@@ -158,30 +155,30 @@ window.renderDashboard = () => {
 
                                 return `
                                 <tr>
-                                    <td class="p-4 font-bold text-slate-400 align-top">${j.dateStr}</td>
+                                    <td class="p-4 font-bold text-slate-400 vertical-top">${j.dateStr}</td>
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
                                             ${logsToShow.map((l, idx) => `
                                                 <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between">
                                                     <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
+                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100">×</button>
                                                 </div>
                                             `).join('')}
                                             ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
-                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none">
-                                            <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
+                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none focus:ring-1 focus:ring-slate-300">
+                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle">${j.ticket}</td>
-                                    <td class="p-4 align-middle">
+                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
+                                    <td class="p-4">
                                         <div class="flex items-center justify-center gap-2">
-                                            <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                            <div onclick="cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                                 ${j.status}
                                             </div>
-                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1 transition-colors">×</button>
+                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1">×</button>
                                         </div>
                                     </td>
                                 </tr>`;
