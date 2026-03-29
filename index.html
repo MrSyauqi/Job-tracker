@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WORK TRACK PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
@@ -14,25 +14,25 @@
                 <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1 uppercase tracking-tighter">Work Track</h1>
                 <p id="currentDateTime" class="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest"></p>
             </div>
-            <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full shadow-sm border-2 border-white"></div>
+            <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
         </header>
 
         <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
-            <input id="jc" placeholder="CUSTOMER" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none focus:ring-1 focus:ring-blue-400">
-            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none focus:ring-1 focus:ring-blue-400">
-            <input id="rt" placeholder="TICKET ID" class="p-3 border rounded text-sm font-mono outline-none focus:ring-1 focus:ring-blue-400">
+            <input id="jc" placeholder="CUSTOMER" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none">
+            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none">
+            <input id="rt" placeholder="TICKET ID" class="p-3 border rounded text-sm font-mono outline-none">
             <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50 outline-none">
                 <option value="3">CRITICAL</option>
                 <option value="2" selected>PENDING</option>
                 <option value="1">SOLVED</option>
             </select>
-            <button onclick="window.addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">Register Technical Record</button>
+            <button onclick="addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">Register Technical Record</button>
         </div>
 
         <div class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
             <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
                 <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Site Fleet History</h2>
-                <input id="search" onkeyup="window.renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none focus:ring-1 focus:ring-blue-400">
+                <input id="search" onkeyup="renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none">
             </div>
             <div id="customerGrid" class="divide-y"></div>
         </div>
