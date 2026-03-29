@@ -19,13 +19,12 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC & LIVE INDICATOR ---
+// --- DATABASE SYNC & CONNECTION STATUS ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#10b981"; 
-        dot.classList.remove('animate-pulse');
         statusText.innerText = "DATABASE CONNECTED";
         statusText.style.color = "#10b981";
     }
@@ -38,13 +37,12 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#ef4444"; 
-        dot.classList.add('animate-pulse');
         statusText.innerText = "DATABASE DISCONNECTED";
         statusText.style.color = "#ef4444";
     }
 });
 
-// --- LOGIC FUNCTIONS ---
+// --- CORE LOGIC ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -56,7 +54,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); 
+        window.updateSortOrder(); // Only jump sorting on Close
     } else {
         expandedSet.add(name);
     }
@@ -68,15 +66,15 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-// --- NEW: DELETE FUNCTIONS ---
+// --- NEW ACTIONS (DELETE & LABELS) ---
 window.deleteJob = async (id) => {
-    if (confirm("ARE YOU SURE YOU WANT TO DELETE THIS CASE?")) {
+    if (confirm("DELETE THIS CASE PERMANENTLY?")) {
         await deleteDoc(doc(db, "jobs", id));
     }
 };
 
 window.deleteLog = async (jobId, logIndex) => {
-    if (confirm("DELETE THIS SUMMARY ENTRY?")) {
+    if (confirm("REMOVE THIS SUMMARY ENTRY?")) {
         const job = globalData.find(j => j.id === jobId);
         const newLogs = [...job.logs];
         newLogs.splice(logIndex, 1);
@@ -84,7 +82,18 @@ window.deleteLog = async (jobId, logIndex) => {
     }
 };
 
-// --- ACTIONS ---
+window.addLog = async (id) => {
+    const input = document.getElementById(`log-in-${id}`);
+    if (!input || !input.value) return;
+    const job = globalData.find(j => j.id === id);
+    // Numbering logic: logs count + 1
+    const logNumber = (job.logs || []).length + 1;
+    const newEntry = `[${logNumber}] ${input.value.toUpperCase()}`;
+    await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
+    input.value = '';
+};
+
+// --- REGISTER CASE ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
     if (!t.value || !c.value) return alert("Missing Info");
@@ -102,31 +111,13 @@ window.addJob = async () => {
     window.updateSortOrder();
 };
 
-window.editField = async (id, field, oldVal) => {
-    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
-    if (newVal !== null && newVal !== oldVal) {
-        const updateObj = {};
-        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateObj);
-    }
-};
-
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-window.addLog = async (id) => {
-    const input = document.getElementById(`log-in-${id}`);
-    if (!input || !input.value) return;
-    const job = globalData.find(j => j.id === id);
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), `[${time}] ${input.value.toUpperCase()}`] });
-    input.value = '';
-};
-
-// --- UI RENDERER ---
+// --- RENDER DASHBOARD ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -142,7 +133,7 @@ window.renderDashboard = () => {
         const isOpen = expandedSet.has(name);
         return `
             <div class="border-b">
-                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
+                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50">
                     <div class="flex items-center gap-3">
                         <span class="text-lg font-black uppercase text-slate-800">${name}</span>
                         <div class="flex gap-1">
@@ -155,35 +146,35 @@ window.renderDashboard = () => {
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
                     <table class="w-full text-[10px]">
                         <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase text-[9px]">
-                            <tr><th class="p-3 text-left border-r w-28">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l w-32">Ticket</th><th class="p-3 text-center w-32">Status</th><th class="p-3 text-center w-12"></th></tr>
+                            <tr><th class="p-3 text-left w-24">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center w-24">Ticket</th><th class="p-3 text-center w-24">Status</th><th class="p-3 w-10"></th></tr>
                         </thead>
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const logsToMap = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+                                const logsToShow = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
 
                                 return `
                                 <tr>
-                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500">${j.dateStr}</td>
+                                    <td class="p-4 border-r font-bold text-slate-400">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${logsToMap.map((l, idx) => `
-                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between items-center">
+                                            ${logsToShow.map((l, idx) => `
+                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between">
                                                     <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="hidden group-hover:block text-red-500 font-black px-1 ml-2">×</button>
+                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100">×</button>
                                                 </div>
                                             `).join('')}
-                                            ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase underline">${isLogOpen ? '↑ Show Less' : '↓ View All'}</button>` : ''}
+                                            ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase">${isLogOpen ? '↑ Hide Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
-                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50">
-                                            <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
+                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50">
+                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500">${j.ticket}</td>
+                                    <td class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
                                     <td class="p-4 text-center">
-                                        <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
+                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
                                     </td>
                                     <td class="p-4 text-center">
                                         <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 transition-colors font-black text-lg">×</button>
