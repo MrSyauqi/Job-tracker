@@ -2,30 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WORK TRACK</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WORK TRACK PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 p-4">
-    <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-        <header class="p-6 border-b flex justify-between items-center">
-            <h1 class="text-2xl font-bold uppercase tracking-tighter">Work Track</h1>
-            <div id="connectionDot" class="h-3 w-3 bg-red-500 rounded-full"></div>
+<body class="bg-slate-100 p-2 md:p-6 font-sans">
+    <div class="max-w-6xl mx-auto">
+        <header class="bg-white p-6 rounded-t-xl border-b flex justify-between items-center shadow-sm">
+            <div>
+                <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1 uppercase tracking-tighter">Work Track</h1>
+                <p id="currentDateTime" class="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest"></p>
+            </div>
+            <div id="connectionDot" class="h-4 w-4 bg-emerald-500 rounded-full shadow-sm border-2 border-white"></div>
         </header>
 
-        <div class="p-6 border-b grid grid-cols-1 md:grid-cols-4 gap-2 bg-slate-50">
-            <input id="jc" placeholder="CUSTOMER" class="p-2 border rounded uppercase text-sm font-bold">
-            <input id="jt" placeholder="ISSUE" class="p-2 border rounded uppercase text-sm">
-            <input id="rt" placeholder="TICKET ID" class="p-2 border rounded text-sm font-mono">
-            <select id="jp" class="p-2 border rounded font-bold text-sm">
+        <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
+            <input id="jc" placeholder="CUSTOMER (FLEX_P5)" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none focus:ring-1 focus:ring-blue-400">
+            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none focus:ring-1 focus:ring-blue-400">
+            <input id="rt" placeholder="TICKET ID" class="p-3 border rounded text-sm font-mono outline-none focus:ring-1 focus:ring-blue-400">
+            <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50 outline-none">
                 <option value="3">CRITICAL</option>
                 <option value="2" selected>PENDING</option>
                 <option value="1">SOLVED</option>
             </select>
-            <button onclick="window.addJob()" class="md:col-span-4 bg-slate-800 text-white p-3 rounded font-black text-xs uppercase">Register Record</button>
+            <button onclick="window.addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">Register Technical Record</button>
         </div>
 
-        <div id="customerGrid" class="divide-y"></div>
+        <div class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
+            <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Site Fleet History</h2>
+                <input id="search" onkeyup="window.renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none focus:ring-1 focus:ring-blue-400">
+            </div>
+            <div id="customerGrid" class="divide-y"></div>
+        </div>
     </div>
     <script type="module" src="script.js"></script>
 </body>
