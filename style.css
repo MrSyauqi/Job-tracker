@@ -1,7 +1,54 @@
-body { letter-spacing: -0.01em; }
-table { border-spacing: 0; width: 100%; }
-input:focus { border-color: #3b82f6 !important; }
-.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-tr { transition: background 0.2s; }
-button:active { transform: scale(0.96); }
+/* Professional Technical UI Theme */
+body { 
+    letter-spacing: -0.01em; 
+    line-height: 1.5;
+}
+
+/* Table Formatting */
+table { 
+    border-spacing: 0; 
+    width: 100%; 
+    table-layout: fixed; /* Keeps columns steady */
+}
+
+th, td {
+    word-wrap: break-word;
+    vertical-align: top;
+}
+
+/* Input Focus States */
+input:focus, select:focus { 
+    border-color: #3b82f6 !important; 
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Status Animations */
+.animate-pulse { 
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
+}
+
+@keyframes pulse { 
+    0%, 100% { opacity: 1; } 
+    50% { opacity: .4; } 
+}
+
+/* Custom Scrollbar for Mobile */
+div::-webkit-scrollbar {
+    height: 4px;
+}
+div::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+div::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+/* Smooth Transitions */
+tr { transition: background 0.1s ease-in-out; }
+button:active { transform: scale(0.97); }
+
+/* Ensure the Ticket ID font looks technical */
+.font-mono {
+    font-family: 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+}
