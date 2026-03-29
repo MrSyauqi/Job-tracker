@@ -19,7 +19,7 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC & STATUS ---
+// --- DATABASE SYNC ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
@@ -30,14 +30,14 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     }
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     
-    // Initial load sort only
+    // Only sort on first load, otherwise wait for folder minimize
     if (sortedCustomerNames.length === 0) window.updateSortOrder();
     
     updateDatalist(); 
     window.renderDashboard();
 });
 
-// --- LOGIC: DELAYED SORTING ---
+// --- LOGIC: SORTING ONLY ON MINIMIZE ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -49,7 +49,8 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Sort triggers ONLY when closing
+        // CRITICAL: The jump/sort happens ONLY here when you close the tab
+        window.updateSortOrder(); 
     } else {
         expandedSet.add(name);
     }
@@ -61,17 +62,18 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
+window.editField = async (id, field, oldVal) => {
+    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
+    if (newVal !== null && newVal !== oldVal) {
+        const updateObj = {};
+        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateObj);
+    }
+};
+
 // --- ACTIONS ---
 window.deleteJob = async (id) => {
     if (confirm("DELETE THIS CASE PERMANENTLY?")) await deleteDoc(doc(db, "jobs", id));
-};
-
-// RESTORED DELETE SUMMARY LOGIC
-window.deleteLog = async (jobId, logIndex) => {
-    const job = globalData.find(j => j.id === jobId);
-    const newLogs = [...job.logs];
-    newLogs.splice(logIndex, 1);
-    await updateDoc(doc(db, "jobs", jobId), { logs: newLogs });
 };
 
 window.addLog = async (id) => {
@@ -85,20 +87,11 @@ window.addLog = async (id) => {
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
+    // This updates the DB but we don't call updateSortOrder, so it stays in place
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
-    // No sorting call here ensures stability while tab is open
 };
 
-window.editField = async (id, field, oldVal) => {
-    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
-    if (newVal !== null && newVal !== oldVal) {
-        const updateObj = {};
-        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateObj);
-    }
-};
-
-// --- RENDERER ---
+// --- RENDERER (WITH VERTICAL MIDDLE ALIGN) ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -109,6 +102,8 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
+        
+        // Internal sort stays stable until closed
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
@@ -137,8 +132,7 @@ window.renderDashboard = () => {
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const logsArr = j.logs || [];
-                                const displayLogs = isLogOpen ? logsArr : (logsArr.length > 0 ? [logsArr[logsArr.length - 1]] : []);
+                                const logs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
 
                                 return `
                                 <tr>
@@ -146,15 +140,33 @@ window.renderDashboard = () => {
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${displayLogs.map((l, idx) => {
-                                                const actualIndex = isLogOpen ? idx : logsArr.length - 1;
-                                                return `
-                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between items-center">
-                                                    <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${actualIndex})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
-                                                </div>`;
-                                            }).join('')}
-                                            ${logsArr.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
+                                            ${logs.map((l) => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]"><span>${l}</span></div>`).join('')}
+                                            ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none">
+                                            <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
+                                        </div>
+                                    </td>
+                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
+                                    <td class="p-4 align-middle text-center">
+                                        <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="w-full py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                            ${j.status}
+                                        </div>
+                                        <button onclick="window.deleteJob('${j.id}')" class="mt-2 text-[9px] font-black text-slate-300 hover:text-red-500 uppercase transition-colors">Delete Case</button>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+    }).join('');
+};
+
+function updateDatalist() {
+    const list = document.getElementById('customerList');
+    if (!list) return;
+    const names = [...new Set(globalData.map(j => j.client))].sort();
+    list.innerHTML = names.map(c => `<option value="${c}">`).join('');
+}
