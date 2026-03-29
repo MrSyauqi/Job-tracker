@@ -54,7 +54,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Jumps to correct sort order only when closing
+        window.updateSortOrder(); // Jumps sorting ONLY on Close
     } else {
         expandedSet.add(name);
     }
@@ -66,9 +66,9 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-// --- ACTIONS ---
+// --- DELETE & LOG ACTIONS ---
 window.deleteJob = async (id) => {
-    if (confirm("DELETE THIS CASE?")) await deleteDoc(doc(db, "jobs", id));
+    if (confirm("DELETE THIS CASE PERMANENTLY?")) await deleteDoc(doc(db, "jobs", id));
 };
 
 window.deleteLog = async (jobId, logIndex) => {
@@ -82,12 +82,12 @@ window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input || !input.value) return;
     const job = globalData.find(j => j.id === id);
-    // NEW: Clean entry without time or numbers
-    const newEntry = input.value.toUpperCase();
+    const newEntry = input.value.toUpperCase(); // No time or numbers
     await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
     input.value = '';
 };
 
+// --- REGISTER CASE ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
     if (!t.value || !c.value) return alert("Missing Info");
@@ -111,7 +111,7 @@ window.cycleStatus = async (id, current) => {
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-// --- RENDERER ---
+// --- UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -122,8 +122,7 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        // Solved cases always stay at the bottom of their folder
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Solved to bottom inside folder
 
         const isOpen = expandedSet.has(name);
         return `
@@ -151,18 +150,18 @@ window.renderDashboard = () => {
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const logsToShow = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+                                const logs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
 
                                 return `
-                                <tr>
-                                    <td class="p-4 font-bold text-slate-400 vertical-top">${j.dateStr}</td>
+                                <tr class="hover:bg-slate-50/30 transition">
+                                    <td class="p-4 font-bold text-slate-400 align-top">${j.dateStr}</td>
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${logsToShow.map((l, idx) => `
+                                            ${logs.map((l, idx) => `
                                                 <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between">
                                                     <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100">×</button>
+                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
                                                 </div>
                                             `).join('')}
                                             ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
@@ -172,13 +171,13 @@ window.renderDashboard = () => {
                                             <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
-                                    <td class="p-4">
+                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle">${j.ticket}</td>
+                                    <td class="p-4 align-middle">
                                         <div class="flex items-center justify-center gap-2">
                                             <div onclick="cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                                 ${j.status}
                                             </div>
-                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1">×</button>
+                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1 transition-colors">×</button>
                                         </div>
                                     </td>
                                 </tr>`;
