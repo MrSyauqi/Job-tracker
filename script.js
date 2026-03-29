@@ -41,7 +41,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     }
 });
 
-// --- LOGIC: DELAYED SORTING ---
+// --- LOGIC ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -53,7 +53,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Resort only when folder is closed
+        window.updateSortOrder(); 
     } else {
         expandedSet.add(name);
     }
@@ -65,7 +65,6 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-// --- EDITING FUNCTIONS (RESTORED) ---
 window.editField = async (id, field, oldVal) => {
     const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
     if (newVal !== null && newVal !== oldVal) {
@@ -75,9 +74,8 @@ window.editField = async (id, field, oldVal) => {
     }
 };
 
-// --- ACTIONS ---
 window.deleteJob = async (id) => {
-    if (confirm("DELETE THIS CASE?")) await deleteDoc(doc(db, "jobs", id));
+    if (confirm("DELETE THIS CASE PERMANENTLY?")) await deleteDoc(doc(db, "jobs", id));
 };
 
 window.deleteLog = async (jobId, logIndex) => {
@@ -117,7 +115,7 @@ window.cycleStatus = async (id, current) => {
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-// --- UI RENDERER ---
+// --- RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -160,7 +158,7 @@ window.renderDashboard = () => {
 
                                 return `
                                 <tr>
-                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 font-bold text-slate-400 align-top cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
+                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 font-bold text-slate-400 align-middle text-center cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
@@ -178,13 +176,11 @@ window.renderDashboard = () => {
                                         </div>
                                     </td>
                                     <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
-                                    <td class="p-4 align-middle">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
-                                                ${j.status}
-                                            </div>
-                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1 transition-colors">×</button>
+                                    <td class="p-4 align-middle text-center">
+                                        <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="w-full py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                            ${j.status}
                                         </div>
+                                        <button onclick="window.deleteJob('${j.id}')" class="mt-2 text-[9px] font-black text-slate-300 hover:text-red-500 uppercase tracking-widest transition-colors">Delete Case</button>
                                     </td>
                                 </tr>`;
                             }).join('')}
