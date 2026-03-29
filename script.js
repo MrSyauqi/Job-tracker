@@ -26,7 +26,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     window.renderDashboard();
 });
 
-function updateDatalist() { //
+function updateDatalist() {
     const list = document.getElementById('customerList');
     if (!list) return;
     const names = [...new Set(globalData.map(j => j.client))].sort();
@@ -49,13 +49,13 @@ window.addJob = async () => {
     t.value = ''; r.value = '';
 };
 
-window.cycleStatus = async (id, current) => { //
+window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-window.editField = async (id, field, val) => { //
+window.editField = async (id, field, val) => {
     const res = prompt(`Edit ${field.toUpperCase()}:`, val);
     if (res && res !== val) {
         const update = {};
@@ -64,7 +64,7 @@ window.editField = async (id, field, val) => { //
     }
 };
 
-window.addLog = async (id) => { //
+window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input.value) return;
     const job = globalData.find(j => j.id === id);
@@ -77,7 +77,7 @@ window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
-    // DANGER FIRST SORTING
+    // (1) DANGER FIRST SORTING: Critical customers to the top
     const sortedNames = Object.keys(groups).sort((a, b) => {
         const score = (c) => groups[c].filter(j => j.status === 'Critical').length * 100 + groups[c].filter(j => j.status === 'Pending').length;
         return score(b) - score(a);
@@ -87,7 +87,9 @@ window.renderDashboard = () => {
         const jobs = groups[name];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); //
+        
+        // (1) SOLVED AUTO MOVE TO BOTTOM: Priority sort inside the table
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
         return `
@@ -103,12 +105,17 @@ window.renderDashboard = () => {
                 </div>
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t">
                     <table class="w-full text-[10px]">
-                        <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase tracking-widest text-[9px]"> <tr><th class="p-3 text-left w-28 border-r">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center w-32 border-r border-l">Ticket</th><th class="p-3 text-center w-32">Status</th></tr>
+                        <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase tracking-widest text-[9px]"> <tr>
+                                <th class="p-3 text-left w-28 border-r">Date</th>
+                                <th class="p-3 text-left">Issue & Summary</th>
+                                <th class="p-3 text-center w-32 border-r border-l">Ticket</th>
+                                <th class="p-3 text-center w-32">Status</th>
+                            </tr>
                         </thead>
                         <tbody class="divide-y">
                             ${jobs.map(j => `
                                 <tr>
-                                    <td onclick="editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer">${j.dateStr}</td>
+                                    <td onclick="editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
@@ -122,7 +129,9 @@ window.renderDashboard = () => {
                                     </td>
                                     <td onclick="editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500">${j.ticket}</td>
                                     <td class="p-4 text-center">
-                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
+                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                            ${j.status}
+                                        </div>
                                     </td>
                                 </tr>`).join('')}
                         </tbody>
