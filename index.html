@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SYAUQI WORKTRACK PRO</title>
+    <title>SYAUQI WORK TRACK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-100 p-2 md:p-6 font-sans">
     <div class="max-w-6xl mx-auto">
@@ -20,13 +19,13 @@
         <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
             <input id="jc" list="customerData" placeholder="CUSTOMER (FLEX_P5)" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none">
             <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none">
-            <input id="rt" placeholder="REPORT/TICKET ID" class="p-3 border rounded text-sm font-mono outline-none">
+            <input id="rt" placeholder="REPORT ID/TICKET" class="p-3 border rounded text-sm font-mono outline-none">
             <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50 outline-none">
                 <option value="3">🚨 CRITICAL</option>
                 <option value="2" selected>⏳ PENDING</option>
                 <option value="1">✅ SOLVED</option>
             </select>
-            <button id="addBtn" onclick="window.addJob(event)" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition">Register Technical Record</button>
+            <button onclick="window.addJob(event)" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition">Register Technical Record</button>
             <datalist id="customerData"></datalist>
         </div>
 
