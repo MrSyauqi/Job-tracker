@@ -18,17 +18,25 @@ let globalData = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE LISTENER & CONNECTION DOT ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all";
     
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    updateCustomerDatalist(); // Update the auto-suggest list
     window.renderDashboard();
 }, (error) => {
     const dot = document.getElementById('connectionDot');
     if (dot) dot.className = "h-4 w-4 bg-red-600 rounded-full border-2 border-white shadow-sm animate-pulse";
 });
+
+// --- (2) AUTO-SUGGEST EXISTING CUSTOMERS ---
+function updateCustomerDatalist() {
+    const list = document.getElementById('customerList');
+    if (!list) return;
+    const uniqueCustomers = [...new Set(globalData.map(j => j.client))].sort();
+    list.innerHTML = uniqueCustomers.map(c => `<option value="${c}">`).join('');
+}
 
 // --- ACTIONS ---
 window.addJob = async () => {
@@ -47,7 +55,7 @@ window.addJob = async () => {
         dateStr: new Date().toLocaleDateString('en-GB')
     });
     expandedSet.add(clientName);
-    t.value = ''; c.value = ''; r.value = '';
+    t.value = ''; r.value = ''; // Note: Leave 'c' if you want to add multiple for same customer
 };
 
 window.cycleStatus = async (id, currentStatus) => {
@@ -91,13 +99,29 @@ window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
     const searchVal = document.getElementById('search').value.toUpperCase();
+    
+    // Grouping
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
-    container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(searchVal)).map(name => {
+    // --- (1) SORT CUSTOMERS BY CRITICALITY ---
+    const sortedCustomerNames = Object.keys(groups).sort((a, b) => {
+        const aCrit = groups[a].filter(j => j.status === 'Critical').length;
+        const bCrit = groups[b].filter(j => j.status === 'Critical').length;
+        const aPend = groups[a].filter(j => j.status === 'Pending').length;
+        const bPend = groups[b].filter(j => j.status === 'Pending').length;
+
+        // Sort priority: Most Critical first, then most Pending
+        if (bCrit !== aCrit) return bCrit - aCrit;
+        return bPend - aPend;
+    });
+
+    container.innerHTML = sortedCustomerNames.filter(c => c.includes(searchVal)).map(name => {
         let jobs = groups[name];
         const critCount = jobs.filter(j => j.status === 'Critical').length;
         const pendCount = jobs.filter(j => j.status === 'Pending').length;
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Critical > Pending > Solved
+        
+        // Inside table sort: Critical > Pending > Solved
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
 
