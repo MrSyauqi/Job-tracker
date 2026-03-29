@@ -16,7 +16,7 @@ const jobsCol = collection(db, "jobs");
 
 let globalData = [];
 let expandedSet = new Set(); 
-let openLogsSet = new Set(); // Tracks which individual cases are expanded to show all logs
+let openLogsSet = new Set(); 
 
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
@@ -25,6 +25,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     window.renderDashboard();
 });
 
+// --- REGISTER CASE ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
     if (!t.value || !c.value) return alert("Fill Fields");
@@ -44,7 +45,7 @@ window.addJob = async () => {
     t.value = ''; c.value = ''; r.value = '';
 };
 
-// --- NEW: UPDATE STATUS BY CLICKING (4) ---
+// --- (1) UPDATE STATUS & AUTO-SORT LOGIC ---
 window.cycleStatus = async (id, currentStatus) => {
     const statusMap = { 'Pending': 'Critical', 'Critical': 'Solved', 'Solved': 'Pending' };
     const priorityMap = { 'Pending': 2, 'Critical': 3, 'Solved': 1 };
@@ -56,27 +57,33 @@ window.cycleStatus = async (id, currentStatus) => {
     });
 };
 
+// --- (2) EDIT DATE OR TICKET INLINE ---
+window.editField = async (id, field, currentValue) => {
+    const newValue = prompt(`Edit ${field.toUpperCase()}:`, currentValue);
+    if (newValue !== null && newValue !== currentValue) {
+        const updateData = {};
+        updateData[field === 'date' ? 'dateStr' : 'ticket'] = newValue.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateData);
+    }
+};
+
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input || !input.value) return;
     const job = globalData.find(j => j.id === id);
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const newEntry = `[${time}] ${input.value.toUpperCase()}`;
-    
     await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
     input.value = '';
 };
 
-// --- NEW: TOGGLE LOG EXPANSION (1) ---
 window.toggleLogHistory = (id) => {
-    if (openLogsSet.has(id)) openLogsSet.delete(id);
-    else openLogsSet.add(id);
+    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
     window.renderDashboard();
 };
 
 window.toggleCust = (name) => {
-    if (expandedSet.has(name)) expandedSet.delete(name);
-    else expandedSet.add(name);
+    expandedSet.has(name) ? expandedSet.delete(name) : expandedSet.add(name);
     window.renderDashboard();
 };
 
@@ -84,10 +91,16 @@ window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
     const searchVal = document.getElementById('search').value.toUpperCase();
+    
+    // Grouping
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
     container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(searchVal)).map(name => {
-        const jobs = groups[name];
+        let jobs = groups[name];
+        
+        // (1) SORTING LOGIC: Critical (3) > Pending (2) > Solved (1)
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
         const isOpen = expandedSet.has(name);
 
         return `
@@ -115,15 +128,13 @@ window.renderDashboard = () => {
 
                                 return `
                                 <tr class="hover:bg-slate-50/50">
-                                    <td class="p-4 border-r font-bold text-slate-400">${j.dateStr}</td>
+                                    <td onclick="editField('${j.id}', 'date', '${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-edit hover:text-blue-500 transition">${j.dateStr}</td>
+                                    
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
-                                        
                                         <div class="space-y-1 mb-3">
                                             ${displayLogs.map(log => `
-                                                <div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">
-                                                    ${log}
-                                                </div>
+                                                <div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">${log}</div>
                                             `).join('')}
                                             ${logs.length > 1 ? `
                                                 <button onclick="toggleLogHistory('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase hover:underline">
@@ -131,14 +142,15 @@ window.renderDashboard = () => {
                                                 </button>
                                             ` : ''}
                                         </div>
-
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" onkeydown="if(event.key==='Enter') window.addLog('${j.id}')" 
                                                 placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50 focus:bg-white">
                                             <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
+
+                                    <td onclick="editField('${j.id}', 'ticket', '${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-edit hover:text-blue-500 transition">${j.ticket}</td>
+                                    
                                     <td class="p-4 text-center">
                                         <div onclick="cycleStatus('${j.id}', '${j.status}')" 
                                             class="py-2 px-1 rounded font-black text-[9px] text-white shadow-sm cursor-pointer hover:brightness-90 transition ${
