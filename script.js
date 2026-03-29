@@ -19,29 +19,25 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC & STATUS ---
+// --- DATABASE SYNC ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#10b981"; 
-        statusText.innerText = "DATABASE CONNECTOR"; // Label added per req
+        statusText.innerText = "DATABASE CONNECTOR";
         statusText.style.color = "#10b981";
     }
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Only sort on first load, otherwise wait for folder minimize
     if (sortedCustomerNames.length === 0) window.updateSortOrder();
+    
     updateDatalist(); 
     window.renderDashboard();
-}, (error) => {
-    const dot = document.getElementById('connectionDot');
-    const statusText = document.getElementById('connectionText');
-    if (dot && statusText) {
-        dot.style.backgroundColor = "#ef4444"; 
-        statusText.innerText = "DISCONNECTED";
-    }
 });
 
-// --- LOGIC: DELAYED SORTING ---
+// --- LOGIC: SORTING ONLY ON MINIMIZE ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -53,7 +49,8 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // RE-SORT ONLY ON CLOSE
+        // CRITICAL: The jump/sort happens ONLY here when you close the tab
+        window.updateSortOrder(); 
     } else {
         expandedSet.add(name);
     }
@@ -65,50 +62,36 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-// --- ACTIONS ---
-window.deleteJob = async (id) => {
-    if (confirm("DELETE THIS CASE?")) await deleteDoc(doc(db, "jobs", id));
+window.editField = async (id, field, oldVal) => {
+    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
+    if (newVal !== null && newVal !== oldVal) {
+        const updateObj = {};
+        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateObj);
+    }
 };
 
-window.deleteLog = async (jobId, logIndex) => {
-    const job = globalData.find(j => j.id === jobId);
-    const newLogs = [...job.logs];
-    newLogs.splice(logIndex, 1);
-    await updateDoc(doc(db, "jobs", jobId), { logs: newLogs });
+// --- ACTIONS ---
+window.deleteJob = async (id) => {
+    if (confirm("DELETE THIS CASE PERMANENTLY?")) await deleteDoc(doc(db, "jobs", id));
 };
 
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input || !input.value) return;
-    const newEntry = input.value.toUpperCase(); // REMOVED TIME & NUMBER
+    const newEntry = input.value.toUpperCase(); 
     await updateDoc(doc(db, "jobs", id), { logs: [...(globalData.find(j => j.id === id).logs || []), newEntry] });
     input.value = '';
-};
-
-window.addJob = async () => {
-    const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Missing Info");
-    await addDoc(jobsCol, {
-        title: t.value.toUpperCase(),
-        client: c.value.trim().toUpperCase(),
-        priority: parseInt(p.value),
-        ticket: r.value || "N/A",
-        status: p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending'),
-        logs: [],
-        createdAt: Date.now(),
-        dateStr: new Date().toLocaleDateString('en-GB')
-    });
-    t.value = ''; r.value = '';
 };
 
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
+    // This updates the DB but we don't call updateSortOrder, so it stays in place
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
-    // Note: No updateSortOrder() here, so items don't jump while open
 };
 
-// --- UI RENDERER ---
+// --- RENDERER (WITH VERTICAL MIDDLE ALIGN) ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -120,7 +103,7 @@ window.renderDashboard = () => {
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
         
-        // Internal case sorting
+        // Internal sort stays stable until closed
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
@@ -142,7 +125,7 @@ window.renderDashboard = () => {
                             <tr>
                                 <th class="p-3 text-left w-24">Date</th>
                                 <th class="p-3 text-left">Issue & Summary</th>
-                                <th class="p-3 text-center w-24">Ticket</th>
+                                <th class="p-3 text-center w-28">Ticket</th>
                                 <th class="p-3 text-center w-32">Status</th>
                             </tr>
                         </thead>
@@ -153,29 +136,24 @@ window.renderDashboard = () => {
 
                                 return `
                                 <tr>
-                                    <td class="p-4 font-bold text-slate-400 align-middle text-center">${j.dateStr}</td>
+                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 font-bold text-slate-400 align-middle text-center cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${logs.map((l, idx) => `
-                                                <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between">
-                                                    <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
-                                                </div>
-                                            `).join('')}
+                                            ${logs.map((l) => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]"><span>${l}</span></div>`).join('')}
                                             ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
-                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none focus:ring-1 focus:ring-slate-300">
+                                            <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none">
                                             <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle">${j.ticket}</td>
+                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
                                     <td class="p-4 align-middle text-center">
                                         <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="w-full py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                             ${j.status}
                                         </div>
-                                        <button onclick="window.deleteJob('${j.id}')" class="mt-2 text-[8px] font-black text-slate-300 hover:text-red-500 uppercase tracking-tighter transition-colors">Delete Case</button>
+                                        <button onclick="window.deleteJob('${j.id}')" class="mt-2 text-[9px] font-black text-slate-300 hover:text-red-500 uppercase transition-colors">Delete Case</button>
                                     </td>
                                 </tr>`;
                             }).join('')}
@@ -192,5 +170,3 @@ function updateDatalist() {
     const names = [...new Set(globalData.map(j => j.client))].sort();
     list.innerHTML = names.map(c => `<option value="${c}">`).join('');
 }
-
-document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
