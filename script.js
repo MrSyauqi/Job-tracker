@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// Ensure these credentials match your Firebase Project Settings exactly
 const firebaseConfig = {
     apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
     authDomain: "workbasetrial.firebaseapp.com",
@@ -16,50 +17,60 @@ const jobsCol = collection(db, "jobs");
 let globalData = [];
 let expandedCustomers = new Set();
 
-// Setup Date Header
+// Update Date Header
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-// REAL-TIME LISTENER
+// REAL-TIME LISTENER & CONNECTION CHECK
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
-    document.getElementById('connectionDot').className = "h-4 w-4 bg-green-500 rounded-full shadow-sm";
+    // Turn dot GREEN when data is received
+    const dot = document.getElementById('connectionDot');
+    if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full shadow-sm";
+    
     globalData = [];
-    snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; globalData.push(d); });
+    snapshot.forEach(doc => { 
+        let d = doc.data(); 
+        d.id = doc.id; 
+        globalData.push(d); 
+    });
     renderDashboard();
+}, (error) => {
+    console.error("Firebase Connection Error:", error);
+    const dot = document.getElementById('connectionDot');
+    if (dot) dot.className = "h-4 w-4 bg-red-500 animate-pulse rounded-full shadow-sm";
 });
 
-// ADD NEW RECORD
 window.addJob = async (e) => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Missing: Customer and Issue");
+    if (!t.value || !c.value) return alert("Please fill Customer and Issue Summary");
     
-    // Status Logic - Remove Symbols from storage
     const statusVal = parseInt(p.value) === 1 ? 'Solved' : (parseInt(p.value) === 3 ? 'Critical' : 'Pending');
     
-    await addDoc(jobsCol, { 
-        title: t.value.trim().toUpperCase(), 
-        client: c.value.trim().toUpperCase(), 
-        priority: parseInt(p.value), 
-        ticket: r.value.trim() || "N/A",
-        status: statusVal, 
-        logs: [], 
-        createdAt: Date.now(), 
-        dateStr: new Date().toLocaleDateString('en-GB')
-    });
-    t.value = ''; c.value = ''; r.value = '';
+    try {
+        await addDoc(jobsCol, { 
+            title: t.value.trim().toUpperCase(), 
+            client: c.value.trim().toUpperCase(), 
+            priority: parseInt(p.value), 
+            ticket: r.value.trim() || "N/A",
+            status: statusVal, 
+            logs: [], 
+            createdAt: Date.now(), 
+            dateStr: new Date().toLocaleDateString('en-GB')
+        });
+        t.value = ''; c.value = ''; r.value = '';
+    } catch (err) {
+        alert("Upload Failed. Check Firebase Rules.");
+    }
 };
 
-// Log Remark Logic
 window.addLog = async (id, existingLogs) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input.value.trim()) return;
-    // 24H Format
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const newEntry = `[${time}] ${input.value.toUpperCase()}`;
     await updateDoc(doc(db, "jobs", id), { logs: [...existingLogs, newEntry] });
     input.value = '';
 };
 
-// Inline Edit Logic
 window.editField = async (id, field, currentVal) => {
     const newVal = prompt(`Edit ${field.toUpperCase()}:`, currentVal);
     if (newVal !== null && newVal !== currentVal) {
@@ -68,7 +79,6 @@ window.editField = async (id, field, currentVal) => {
     }
 };
 
-// Lean Status Toggle Choice
 window.changeStatus = async (id) => {
     const choice = prompt("SET STATUS:\n1. PENDING\n2. SOLVED\n3. CRITICAL\n4. DELETE RECORD");
     if (choice === "1") await updateDoc(doc(db, "jobs", id), { status: 'Pending', priority: 2 });
@@ -115,13 +125,14 @@ window.renderDashboard = () => {
                             <tr>
                                 <th class="p-3 text-left w-24 border-r">Date</th>
                                 <th class="p-3 text-left border-r">Issue & History Logs</th>
-                                <th class="p-3 text-center w-36 border-r">Status</th> <th class="p-3 text-left w-32">Ticket ID</th> </tr>
+                                <th class="p-3 text-center w-36 border-r">Status</th>
+                                <th class="p-3 text-left w-32">Ticket ID</th>
+                            </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             ${jobs.map(j => {
                                 const logs = j.logs || [];
-                                // STRECT "SHOW ONLY 1" RULE: Slice only the absolute latest entry
-                                const latestLogEntry = logs.slice(-1); 
+                                const latestLogEntry = logs.slice(-1); // Only 1 log entry shown
                                 
                                 return `
                                 <tr class="hover:bg-blue-50/20 group">
@@ -132,8 +143,8 @@ window.renderDashboard = () => {
                                             ${latestLogEntry.map(log => `<div class="bg-blue-50 text-blue-700 p-1 px-2 rounded-sm text-[10px] font-bold border-l-2 border-blue-400">${log}</div>`).join('')}
                                         </div>
                                         <div class="flex gap-1">
-                                            <input id="log-in-${j.id}" placeholder="UPDATE LOG..." class="flex-1 bg-slate-50 border p-1 px-2 rounded text-[10px] outline-none focus:border-blue-400 uppercase font-semibold">
-                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(logs)})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold uppercase transition hover:bg-black active:scale-90">Add</button>
+                                            <input id="log-in-${j.id}" placeholder="UPDATE LOG..." class="flex-1 bg-slate-50 border p-1 px-2 rounded text-[10px] outline-none font-semibold uppercase">
+                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(logs)})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold uppercase">Add</button>
                                         </div>
                                     </td>
                                     <td class="p-3 border-r text-center">
@@ -143,8 +154,8 @@ window.renderDashboard = () => {
                                             ${j.status}
                                         </button>
                                     </td>
-                                    <td onclick="window.editField('${j.id}', 'ticket', '${j.ticket}')" class="p-3 font-mono text-slate-400 font-bold uppercase cursor-pointer hover:text-blue-500 flex justify-between items-center group">
-                                        <span>${j.ticket}</span>
+                                    <td onclick="window.editField('${j.id}', 'ticket', '${j.ticket}')" class="p-3 font-mono text-slate-400 font-bold uppercase cursor-pointer hover:text-blue-500">
+                                        ${j.ticket}
                                     </td>
                                 </tr>
                             `).join('')}
