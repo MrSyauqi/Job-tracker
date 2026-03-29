@@ -10,7 +10,6 @@ const firebaseConfig = {
     appId: "1:122123476567:web:aa60037c0393daeadc0d12"
 };
 
-// --- INITIALIZE ---
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const jobsCol = collection(db, "jobs");
@@ -19,35 +18,29 @@ let globalData = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- 1. CONNECTION LOGIC (FIXED) ---
-// This listens specifically for the connection status
+// --- DATABASE LISTENER & CONNECTION DOT ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
-    console.log("Firebase Connected!");
     const dot = document.getElementById('connectionDot');
-    if (dot) {
-        // Turn Green and add a pulse to show it's "Live"
-        dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all duration-500";
-    }
+    if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all";
     
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     window.renderDashboard();
 }, (error) => {
-    console.error("Firebase Error:", error);
     const dot = document.getElementById('connectionDot');
     if (dot) dot.className = "h-4 w-4 bg-red-600 rounded-full border-2 border-white shadow-sm animate-pulse";
 });
 
-// --- 2. ADD NEW CASE ---
+// --- ACTIONS ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Fill Fields");
+    if (!t.value || !c.value) return alert("Fill Mandatory Fields");
     const clientName = c.value.trim().toUpperCase();
     
     await addDoc(jobsCol, {
         title: t.value.toUpperCase(),
         client: clientName,
         priority: parseInt(p.value),
-        ticket: r.value || "NA",
+        ticket: r.value || "N/A",
         status: p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending'),
         logs: [],
         createdAt: Date.now(),
@@ -57,19 +50,13 @@ window.addJob = async () => {
     t.value = ''; c.value = ''; r.value = '';
 };
 
-// --- 3. CLICK TO CYCLE STATUS (AUTO-SORT) ---
 window.cycleStatus = async (id, currentStatus) => {
     const statusMap = { 'Pending': 'Critical', 'Critical': 'Solved', 'Solved': 'Pending' };
     const priorityMap = { 'Pending': 2, 'Critical': 3, 'Solved': 1 };
     const nextStatus = statusMap[currentStatus];
-    
-    await updateDoc(doc(db, "jobs", id), { 
-        status: nextStatus,
-        priority: priorityMap[nextStatus]
-    });
+    await updateDoc(doc(db, "jobs", id), { status: nextStatus, priority: priorityMap[nextStatus] });
 };
 
-// --- 4. CLICK TO EDIT DATE/TICKET ---
 window.editField = async (id, field, currentValue) => {
     const newValue = prompt(`Edit ${field.toUpperCase()}:`, currentValue);
     if (newValue !== null && newValue !== currentValue) {
@@ -99,23 +86,18 @@ window.toggleCust = (name) => {
     window.renderDashboard();
 };
 
-// --- 5. RENDER DASHBOARD (WITH INDICATORS) ---
+// --- CORE UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
     const searchVal = document.getElementById('search').value.toUpperCase();
-    
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
     container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(searchVal)).map(name => {
         let jobs = groups[name];
-        
-        // Count for indicators
         const critCount = jobs.filter(j => j.status === 'Critical').length;
         const pendCount = jobs.filter(j => j.status === 'Pending').length;
-
-        // Sort: Critical(3) > Pending(2) > Solved(1)
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Critical > Pending > Solved
 
         const isOpen = expandedSet.has(name);
 
@@ -129,7 +111,7 @@ window.renderDashboard = () => {
                             ${pendCount > 0 ? `<span class="bg-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded">${pendCount} PEND</span>` : ''}
                         </div>
                     </div>
-                    <span class="text-[9px] font-bold px-3 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'Close' : 'Open'}</span>
+                    <span class="text-[9px] font-bold px-3 py-1 bg-slate-100 rounded text-slate-500 uppercase tracking-widest">${isOpen ? 'Close' : 'Open'}</span>
                 </div>
 
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
@@ -149,7 +131,7 @@ window.renderDashboard = () => {
                                 const displayLogs = isLogExpanded ? logs : (logs.length > 0 ? [logs[logs.length - 1]] : []);
 
                                 return `
-                                <tr class="hover:bg-slate-50/50">
+                                <tr class="hover:bg-slate-50/50 transition">
                                     <td onclick="editField('${j.id}', 'date', '${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
@@ -158,8 +140,8 @@ window.renderDashboard = () => {
                                             ${logs.length > 1 ? `<button onclick="toggleLogHistory('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase hover:underline">${isLogExpanded ? '↑ Show Less' : `↓ View All ${logs.length} Logs`}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
-                                            <input id="log-in-${j.id}" onkeydown="if(event.key==='Enter') window.addLog('${j.id}')" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50 focus:bg-white">
-                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
+                                            <input id="log-in-${j.id}" onkeydown="if(event.key==='Enter') window.addLog('${j.id}')" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50 focus:bg-white transition-all">
+                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black hover:bg-black">ADD</button>
                                         </div>
                                     </td>
                                     <td onclick="editField('${j.id}', 'ticket', '${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
