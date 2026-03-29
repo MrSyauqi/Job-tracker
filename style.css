@@ -1,28 +1,33 @@
-/* Monospaced font for Ticket IDs */
-.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+/* Custom Monospace for Ticket IDs */
+.font-mono { 
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+}
 
-/* The "Glow" when you click an input */
+/* Make the title look sharp */
+h1 {
+    letter-spacing: -0.05em;
+}
+
+/* The pulse for critical cases */
+.animate-pulse { 
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
+}
+@keyframes pulse { 
+    0%, 100% { opacity: 1; } 
+    50% { opacity: .4; } 
+}
+
+/* Input focus glow */
 input:focus { 
     border-color: #3b82f6 !important; 
     outline: none;
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
-/* The Pulsing animation for Critical tickets */
-.animate-pulse { 
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
-}
-
-@keyframes pulse { 
-    0%, 100% { opacity: 1; } 
-    50% { opacity: .4; } 
-}
-
-/* Helper to put lines between list items */
+/* List Dividers */
 .divide-y > :not([hidden]) ~ :not([hidden]) {
     border-top-width: 1px;
 }
 
-/* Table layout safety */
 table { border-spacing: 0; width: 100%; table-layout: fixed; }
 th, td { word-wrap: break-word; vertical-align: top; }
