@@ -19,6 +19,7 @@ let expandedCustomers = new Set();
 
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+// REAL-TIME LISTENER
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     document.getElementById('connectionDot').className = "h-4 w-4 bg-emerald-500 rounded-full shadow-sm border-2 border-white";
     globalData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -29,15 +30,25 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
 
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Fill fields");
+    if (!t.value || !c.value) return alert("Fill Customer and Issue");
+
     const statusText = p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending');
-    await addDoc(jobsCol, { 
-        title: t.value.toUpperCase(), client: c.value.toUpperCase(), 
-        priority: parseInt(p.value), ticket: r.value || "NA",
-        status: statusText, logs: [], createdAt: Date.now(), 
-        dateStr: new Date().toLocaleDateString('en-GB')
-    });
-    t.value = ''; r.value = '';
+    const clientName = c.value.trim().toUpperCase();
+
+    try {
+        await addDoc(jobsCol, { 
+            title: t.value.toUpperCase(), 
+            client: clientName, 
+            priority: parseInt(p.value), 
+            ticket: r.value || "NA",
+            status: statusText, 
+            logs: [], 
+            createdAt: Date.now(), 
+            dateStr: new Date().toLocaleDateString('en-GB')
+        });
+        expandedCustomers.add(clientName);
+        t.value = ''; c.value = ''; r.value = '';
+    } catch (e) { alert("Error: " + e.message); }
 };
 
 window.addLog = async (id, logs) => {
@@ -49,7 +60,7 @@ window.addLog = async (id, logs) => {
 };
 
 window.changeStatus = async (id) => {
-    const choice = prompt("1: PENDING | 2: SOLVED | 3: CRITICAL | 4: DELETE");
+    const choice = prompt("SET STATUS:\n1. PENDING\n2. SOLVED\n3. CRITICAL\n4. DELETE");
     if (choice === "1") await updateDoc(doc(db, "jobs", id), { status: 'Pending', priority: 2 });
     else if (choice === "2") await updateDoc(doc(db, "jobs", id), { status: 'Solved', priority: 1 });
     else if (choice === "3") await updateDoc(doc(db, "jobs", id), { status: 'Critical', priority: 3 });
@@ -61,7 +72,10 @@ window.editField = async (id, field, cur) => {
     if (val) await updateDoc(doc(db, "jobs", id), { [field]: val.toUpperCase() });
 };
 
-window.toggleCustomer = (c) => { expandedCustomers.has(c) ? expandedCustomers.delete(c) : expandedCustomers.add(c); renderDashboard(); };
+window.toggleCustomer = (c) => { 
+    expandedCustomers.has(c) ? expandedCustomers.delete(c) : expandedCustomers.add(c); 
+    renderDashboard(); 
+};
 
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
@@ -78,7 +92,7 @@ window.renderDashboard = () => {
                 <div onclick="window.toggleCustomer('${client}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
                     <div class="flex items-center gap-3">
                         <span class="text-lg font-black tracking-tighter uppercase">${client}</span>
-                        <span class="text-[9px] px-2 py-1 rounded bg-red-600 text-white font-bold">${pCount} PENDING</span>
+                        <span class="text-[9px] px-2 py-1 rounded ${pCount > 0 ? 'bg-red-600' : 'bg-slate-400'} text-white font-bold">${pCount} PENDING</span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-400">${isOpen ? 'CLOSE' : 'OPEN'}</span>
                 </div>
@@ -97,15 +111,15 @@ window.renderDashboard = () => {
                                 <tr class="hover:bg-blue-50/10">
                                     <td onclick="window.editField('${j.id}','dateStr','${j.dateStr}')" class="p-3 border-r font-bold text-slate-400 cursor-pointer">${j.dateStr}</td>
                                     <td class="p-3 border-r">
-                                        <div class="font-black mb-1 text-slate-800">${j.title}</div>
+                                        <div class="font-black mb-1 text-slate-800 uppercase">${j.title}</div>
                                         ${j.logs.length ? `<div class="bg-blue-50 text-blue-700 p-1 px-2 rounded border-l-2 border-blue-400 font-bold mb-2">${j.logs.slice(-1)}</div>` : ''}
                                         <div class="flex gap-1">
-                                            <input id="log-in-${j.id}" placeholder="LOG UPDATE..." class="flex-1 bg-slate-50 border p-1 rounded text-[10px] uppercase font-semibold outline-none focus:border-blue-300">
-                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(j.logs)})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold transition active:scale-90">ADD</button>
+                                            <input id="log-in-${j.id}" placeholder="UPDATE LOG..." class="flex-1 bg-slate-50 border p-1 rounded text-[10px] uppercase font-semibold outline-none focus:border-blue-300">
+                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(j.logs)})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold">ADD</button>
                                         </div>
                                     </td>
                                     <td class="p-3 border-r text-center">
-                                        <button onclick="window.changeStatus('${j.id}')" class="w-full py-2 rounded font-black text-[9px] text-white transition active:scale-95 ${j.status === 'Solved' ? 'bg-emerald-500' : (j.priority === 3 ? 'bg-red-600 animate-pulse' : 'bg-orange-500')}">${j.status}</button>
+                                        <button onclick="window.changeStatus('${j.id}')" class="w-full py-2 rounded font-black text-[9px] text-white ${j.status === 'Solved' ? 'bg-emerald-500' : (j.priority === 3 ? 'bg-red-600 animate-pulse' : 'bg-orange-500')}">${j.status}</button>
                                     </td>
                                     <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-3 font-mono font-bold text-slate-400 cursor-pointer hover:text-blue-500">${j.ticket}</td>
                                 </tr>`).join('')}
