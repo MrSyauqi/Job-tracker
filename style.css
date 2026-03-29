@@ -1,20 +1,17 @@
-body { letter-spacing: -0.01em; }
-
-table { border-spacing: 0; width: 100%; table-layout: fixed; }
-
-th, td { word-wrap: break-word; vertical-align: top; }
-
-input:focus, select:focus { 
-    border-color: #3b82f6 !important; 
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1); 
-}
+.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
 .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
-div::-webkit-scrollbar { height: 4px; }
-div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+table { border-spacing: 0; width: 100%; table-layout: fixed; }
+th, td { word-wrap: break-word; vertical-align: top; }
 
-button:active { transform: scale(0.97); }
+input:focus { 
+    border-color: #3b82f6 !important; 
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
 
-.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.divide-y > :not([hidden]) ~ :not([hidden]) {
+    border-top-width: 1px;
+}
