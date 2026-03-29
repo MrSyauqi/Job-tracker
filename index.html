@@ -3,44 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SYAUQI CASE TRACKER</title>
+    <title>Syauqi Case Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .cursor-pointer { cursor: pointer; }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
 </head>
-<body class="bg-slate-100 p-2 md:p-6 font-sans">
-    <div class="max-w-6xl mx-auto">
-        <header class="bg-white p-6 rounded-t-xl border-b flex justify-between items-center shadow-sm">
-            <div>
-                <h1 class="text-3xl font-light text-slate-800 border-b-2 border-slate-300 inline-block pb-1 uppercase tracking-tighter">
-                    Syauqi <span class="font-black">Case Tracker</span>
-                </h1>
-                <p id="currentDateTime" class="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest"></p>
-            </div>
-            <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
-        </header>
+<body class="p-4 md:p-8">
 
-        <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
-            <input id="jc" placeholder="CUSTOMER" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none">
-            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none">
-            <input id="rt" placeholder="TICKET ID" class="p-3 border rounded text-sm font-mono outline-none">
-            <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50 outline-none">
+    <div class="max-w-6xl mx-auto bg-white shadow-2xl rounded-xl overflow-hidden border border-slate-200">
+        
+        <div class="p-8 border-b bg-white flex justify-between items-start">
+            <div>
+                <h1 class="text-4xl font-black tracking-tighter text-slate-800 flex items-center gap-2">
+                    SYAUQI <span class="text-slate-500 font-light">CASE TRACKER</span>
+                </h1>
+                <p id="currentDateTime" class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest"></p>
+            </div>
+            <div id="connectionDot" class="h-4 w-4 bg-red-500 rounded-full border-2 border-white shadow-sm transition-all duration-500"></div>
+        </div>
+
+        <div class="bg-slate-50/50 p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="md:col-span-5">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Register Case</h2>
+            </div>
+            
+            <input id="jc" list="customerList" placeholder="CUSTOMER" class="p-4 border rounded-lg text-sm font-black uppercase bg-white outline-none focus:ring-2 focus:ring-slate-800 transition">
+            <datalist id="customerList"></datalist>
+
+            <input id="jt" placeholder="ISSUE SUMMARY" class="p-4 border rounded-lg text-sm md:col-span-2 uppercase outline-none focus:ring-2 focus:ring-slate-800 transition">
+            
+            <input id="rt" placeholder="TICKET ID" class="p-4 border rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-slate-800 transition uppercase">
+            
+            <select id="jp" class="p-4 border rounded-lg text-sm font-black bg-white outline-none focus:ring-2 focus:ring-slate-800 transition cursor-pointer">
                 <option value="3">CRITICAL</option>
                 <option value="2" selected>PENDING</option>
                 <option value="1">SOLVED</option>
             </select>
-            <button onclick="addJob()" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">
+
+            <button onclick="addJob()" class="md:col-span-5 bg-slate-900 text-white py-4 rounded-lg font-black text-xs uppercase tracking-[0.3em] hover:bg-black active:scale-[0.98] transition-all shadow-lg">
                 Register Case
             </button>
         </div>
 
-        <div class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
-            <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
-                <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Case Overall</h2>
-                <input id="search" onkeyup="renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none">
+        <div class="p-6 bg-slate-50/30">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Case Overall</h3>
+                <div class="relative w-full md:w-72">
+                    <input id="search" oninput="renderDashboard()" type="text" placeholder="SEARCH SITE..." class="w-full p-3 pl-10 border rounded-full text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-slate-200">
+                    <svg class="w-4 h-4 absolute left-4 top-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
             </div>
-            <div id="customerGrid" class="divide-y"></div>
+
+            <div id="customerGrid" class="bg-white rounded-xl border shadow-sm divide-y">
+                </div>
         </div>
+
     </div>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>
