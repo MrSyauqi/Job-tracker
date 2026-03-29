@@ -19,14 +19,16 @@ let sortedCustomerNames = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- DATABASE SYNC & CONNECTION INDICATOR ---
+// --- DATABASE SYNC & LIVE INDICATOR ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
+    const statusText = document.getElementById('connectionText');
     
-    // If we receive data, set indicator to GREEN
-    if (dot) {
-        dot.style.backgroundColor = "#10b981"; // Emerald Green
+    if (dot && statusText) {
+        dot.style.backgroundColor = "#10b981"; // Green
         dot.classList.remove('animate-pulse');
+        statusText.innerText = "DATABASE CONNECTED";
+        statusText.style.color = "#10b981";
     }
     
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -38,16 +40,17 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     updateDatalist(); 
     window.renderDashboard();
 }, (error) => {
-    // If there is an error (lost connection), set indicator to RED
     const dot = document.getElementById('connectionDot');
-    if (dot) {
+    const statusText = document.getElementById('connectionText');
+    if (dot && statusText) {
         dot.style.backgroundColor = "#ef4444"; // Red
         dot.classList.add('animate-pulse');
+        statusText.innerText = "DATABASE DISCONNECTED";
+        statusText.style.color = "#ef4444";
     }
-    console.error("Firebase Connection Error:", error);
 });
 
-// --- REMAINS UNCHANGED: DELAYED SORT LOGIC ---
+// --- SORTING LOGIC ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -59,20 +62,37 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Only re-sorts when closing
+        window.updateSortOrder(); // Jumps/Sorts ONLY when you click "CLOSE"
     } else {
         expandedSet.add(name);
     }
     window.renderDashboard();
 };
 
-// --- REMAINS UNCHANGED: EDIT & ACTION LOGIC ---
+// --- ACTIONS ---
+window.addJob = async () => {
+    const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
+    if (!t.value || !c.value) return alert("Missing Info");
+    await addDoc(jobsCol, {
+        title: t.value.toUpperCase(),
+        client: c.value.trim().toUpperCase(),
+        priority: parseInt(p.value),
+        ticket: r.value || "N/A",
+        status: p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending'),
+        logs: [],
+        createdAt: Date.now(),
+        dateStr: new Date().toLocaleDateString('en-GB')
+    });
+    t.value = ''; r.value = '';
+    window.updateSortOrder();
+};
+
 window.editField = async (id, field, oldVal) => {
     const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
     if (newVal !== null && newVal !== oldVal) {
         const updateObj = {};
         updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateObj); //
+        await updateDoc(doc(db, "jobs", id), updateObj);
     }
 };
 
@@ -91,7 +111,7 @@ window.addLog = async (id) => {
     input.value = '';
 };
 
-// --- REMAINS UNCHANGED: UI RENDERER ---
+// --- UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -100,7 +120,7 @@ window.renderDashboard = () => {
 
     container.innerHTML = sortedCustomerNames.filter(c => c.includes(searchVal)).map(name => {
         const jobs = groups[name] || [];
-        const crits = jobs.filter(j => j.status === 'Critical').length; //
+        const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Solved to bottom
 
@@ -152,24 +172,7 @@ function updateDatalist() {
     const list = document.getElementById('customerList');
     if (!list) return;
     const names = [...new Set(globalData.map(j => j.client))].sort();
-    list.innerHTML = names.map(c => `<option value="${c}">`).join(''); //
+    list.innerHTML = names.map(c => `<option value="${c}">`).join('');
 }
-
-window.addJob = async () => {
-    const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Missing Info");
-    await addDoc(jobsCol, {
-        title: t.value.toUpperCase(),
-        client: c.value.trim().toUpperCase(),
-        priority: parseInt(p.value),
-        ticket: r.value || "N/A",
-        status: p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending'),
-        logs: [],
-        createdAt: Date.now(),
-        dateStr: new Date().toLocaleDateString('en-GB')
-    });
-    t.value = ''; r.value = '';
-    window.updateSortOrder(); 
-};
 
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
