@@ -25,7 +25,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#10b981"; 
-        statusText.innerText = "DATABASE CONNECTED";
+        statusText.innerText = "DATABASE CONNECTOR";
         statusText.style.color = "#10b981";
     }
     globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -37,12 +37,11 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
         dot.style.backgroundColor = "#ef4444"; 
-        statusText.innerText = "DATABASE DISCONNECTED";
-        statusText.style.color = "#ef4444";
+        statusText.innerText = "DISCONNECTED";
     }
 });
 
-// --- CORE LOGIC ---
+// --- LOGIC: DELAYED SORTING ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -54,7 +53,7 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Jumps to correct sort order only when closing
+        window.updateSortOrder(); // Resort only when folder is closed
     } else {
         expandedSet.add(name);
     }
@@ -64,6 +63,16 @@ window.toggleFolder = (name) => {
 window.toggleLogs = (id) => {
     openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
     window.renderDashboard();
+};
+
+// --- EDITING FUNCTIONS (RESTORED) ---
+window.editField = async (id, field, oldVal) => {
+    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
+    if (newVal !== null && newVal !== oldVal) {
+        const updateObj = {};
+        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateObj);
+    }
 };
 
 // --- ACTIONS ---
@@ -81,10 +90,8 @@ window.deleteLog = async (jobId, logIndex) => {
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
     if (!input || !input.value) return;
-    const job = globalData.find(j => j.id === id);
-    // NEW: Clean entry without time or numbers
     const newEntry = input.value.toUpperCase();
-    await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
+    await updateDoc(doc(db, "jobs", id), { logs: [...(globalData.find(j => j.id === id).logs || []), newEntry] });
     input.value = '';
 };
 
@@ -102,7 +109,6 @@ window.addJob = async () => {
         dateStr: new Date().toLocaleDateString('en-GB')
     });
     t.value = ''; r.value = '';
-    window.updateSortOrder();
 };
 
 window.cycleStatus = async (id, current) => {
@@ -111,7 +117,7 @@ window.cycleStatus = async (id, current) => {
     await updateDoc(doc(db, "jobs", id), { status: next, priority: prio });
 };
 
-// --- RENDERER ---
+// --- UI RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -122,13 +128,12 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        // Solved cases always stay at the bottom of their folder
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
         return `
             <div class="border-b">
-                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50">
+                <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
                     <div class="flex items-center gap-3">
                         <span class="text-lg font-black uppercase text-slate-800">${name}</span>
                         <div class="flex gap-1">
@@ -144,41 +149,41 @@ window.renderDashboard = () => {
                             <tr>
                                 <th class="p-3 text-left w-24">Date</th>
                                 <th class="p-3 text-left">Issue & Summary</th>
-                                <th class="p-3 text-center w-24">Ticket</th>
+                                <th class="p-3 text-center w-28">Ticket</th>
                                 <th class="p-3 text-center w-32">Status</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
                             ${jobs.map(j => {
                                 const isLogOpen = openLogsSet.has(j.id);
-                                const logsToShow = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+                                const logs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
 
                                 return `
                                 <tr>
-                                    <td class="p-4 font-bold text-slate-400 vertical-top">${j.dateStr}</td>
+                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 font-bold text-slate-400 align-top cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
                                     <td class="p-4">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${logsToShow.map((l, idx) => `
+                                            ${logs.map((l, idx) => `
                                                 <div class="group bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px] flex justify-between">
                                                     <span>${l}</span>
-                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100">×</button>
+                                                    <button onclick="window.deleteLog('${j.id}', ${isLogOpen ? idx : j.logs.length - 1})" class="text-red-400 ml-2 font-black opacity-0 group-hover:opacity-100 transition">×</button>
                                                 </div>
                                             `).join('')}
                                             ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 underline uppercase mt-1">${isLogOpen ? '↑ Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold bg-slate-50 outline-none focus:ring-1 focus:ring-slate-300">
-                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
+                                            <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-3 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
-                                    <td class="p-4">
+                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 text-center font-mono font-black text-slate-400 text-xs align-middle cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
+                                    <td class="p-4 align-middle">
                                         <div class="flex items-center justify-center gap-2">
-                                            <div onclick="cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
+                                            <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="flex-1 py-2 px-1 rounded font-black text-[9px] text-white text-center cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                                 ${j.status}
                                             </div>
-                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1">×</button>
+                                            <button onclick="window.deleteJob('${j.id}')" class="text-slate-300 hover:text-red-500 font-black text-lg p-1 transition-colors">×</button>
                                         </div>
                                     </td>
                                 </tr>`;
