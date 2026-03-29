@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Ensure these credentials match your Firebase Project Settings exactly
 const firebaseConfig = {
     apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
     authDomain: "workbasetrial.firebaseapp.com",
@@ -17,152 +16,103 @@ const jobsCol = collection(db, "jobs");
 let globalData = [];
 let expandedCustomers = new Set();
 
-// Update Date Header
 document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-// REAL-TIME LISTENER & CONNECTION CHECK
+// REFRESH DATA & CONNECTION CHECK
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
-    // Turn dot GREEN when data is received
-    const dot = document.getElementById('connectionDot');
-    if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full shadow-sm";
-    
-    globalData = [];
-    snapshot.forEach(doc => { 
-        let d = doc.data(); 
-        d.id = doc.id; 
-        globalData.push(d); 
-    });
+    document.getElementById('connectionDot').className = "h-4 w-4 bg-emerald-500 rounded-full shadow-lg border-2 border-white";
+    globalData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderDashboard();
-}, (error) => {
-    console.error("Firebase Connection Error:", error);
-    const dot = document.getElementById('connectionDot');
-    if (dot) dot.className = "h-4 w-4 bg-red-500 animate-pulse rounded-full shadow-sm";
+}, (err) => {
+    console.error(err);
+    document.getElementById('connectionDot').className = "h-4 w-4 bg-red-600 animate-pulse rounded-full shadow-lg border-2 border-white";
 });
 
-window.addJob = async (e) => {
+window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Please fill Customer and Issue Summary");
-    
-    const statusVal = parseInt(p.value) === 1 ? 'Solved' : (parseInt(p.value) === 3 ? 'Critical' : 'Pending');
-    
-    try {
-        await addDoc(jobsCol, { 
-            title: t.value.trim().toUpperCase(), 
-            client: c.value.trim().toUpperCase(), 
-            priority: parseInt(p.value), 
-            ticket: r.value.trim() || "N/A",
-            status: statusVal, 
-            logs: [], 
-            createdAt: Date.now(), 
-            dateStr: new Date().toLocaleDateString('en-GB')
-        });
-        t.value = ''; c.value = ''; r.value = '';
-    } catch (err) {
-        alert("Upload Failed. Check Firebase Rules.");
-    }
+    if (!t.value || !c.value) return alert("Fill all fields");
+    const statusText = p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending');
+    await addDoc(jobsCol, { 
+        title: t.value.toUpperCase(), client: c.value.toUpperCase(), 
+        priority: parseInt(p.value), ticket: r.value || "NA",
+        status: statusText, logs: [], createdAt: Date.now(), 
+        dateStr: new Date().toLocaleDateString('en-GB')
+    });
+    t.value = ''; c.value = ''; r.value = '';
 };
 
-window.addLog = async (id, existingLogs) => {
+window.addLog = async (id, logs) => {
     const input = document.getElementById(`log-in-${id}`);
-    if (!input.value.trim()) return;
+    if (!input.value) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    const newEntry = `[${time}] ${input.value.toUpperCase()}`;
-    await updateDoc(doc(db, "jobs", id), { logs: [...existingLogs, newEntry] });
+    await updateDoc(doc(db, "jobs", id), { logs: [...logs, `[${time}] ${input.value.toUpperCase()}`] });
     input.value = '';
 };
 
-window.editField = async (id, field, currentVal) => {
-    const newVal = prompt(`Edit ${field.toUpperCase()}:`, currentVal);
-    if (newVal !== null && newVal !== currentVal) {
-        let update = {}; update[field] = newVal.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), update);
-    }
-};
-
 window.changeStatus = async (id) => {
-    const choice = prompt("SET STATUS:\n1. PENDING\n2. SOLVED\n3. CRITICAL\n4. DELETE RECORD");
+    const choice = prompt("1: PENDING | 2: SOLVED | 3: CRITICAL | 4: DELETE");
     if (choice === "1") await updateDoc(doc(db, "jobs", id), { status: 'Pending', priority: 2 });
     else if (choice === "2") await updateDoc(doc(db, "jobs", id), { status: 'Solved', priority: 1 });
     else if (choice === "3") await updateDoc(doc(db, "jobs", id), { status: 'Critical', priority: 3 });
-    else if (choice === "4") if(confirm("Permanently delete?")) await deleteDoc(doc(db, "jobs", id));
+    else if (choice === "4") if(confirm("Delete?")) await deleteDoc(doc(db, "jobs", id));
 };
 
-window.toggleCustomer = (client) => {
-    expandedCustomers.has(client) ? expandedCustomers.delete(client) : expandedCustomers.add(client);
-    renderDashboard();
+window.editField = async (id, field, cur) => {
+    const val = prompt(`Edit ${field}:`, cur);
+    if (val) await updateDoc(doc(db, "jobs", id), { [field]: val.toUpperCase() });
 };
+
+window.toggleCustomer = (c) => { expandedCustomers.has(c) ? expandedCustomers.delete(c) : expandedCustomers.add(c); renderDashboard(); };
 
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
-    const searchVal = document.getElementById('search').value.toUpperCase();
-    
-    const groups = globalData.reduce((acc, job) => {
-        if (!acc[job.client]) acc[job.client] = [];
-        acc[job.client].push(job);
-        return acc;
-    }, {});
+    const search = document.getElementById('search').value.toUpperCase();
+    const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
 
-    const sortedClients = Object.keys(groups).sort().filter(c => c.includes(searchVal));
-
-    container.innerHTML = sortedClients.map(client => {
-        const jobs = groups[client].sort((a, b) => b.priority - a.priority);
-        const pendingCount = jobs.filter(j => j.status !== 'Solved').length;
-        const isExp = expandedCustomers.has(client);
+    container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(search)).map(client => {
+        const jobs = groups[client].sort((a,b) => b.priority - a.priority);
+        const isOpen = expandedCustomers.has(client);
+        const pCount = jobs.filter(j => j.status !== 'Solved').length;
 
         return `
-            <div class="border-b">
-                <div onclick="window.toggleCustomer('${client}')" class="flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50 transition">
-                    <div class="flex items-center gap-4">
-                        <span class="text-xl font-black text-slate-800 tracking-tighter uppercase">${client}</span>
-                        <span class="${pendingCount > 0 ? 'bg-red-600' : 'bg-slate-300 text-slate-500'} text-white text-[9px] px-2 py-1 rounded-sm font-black uppercase">${pendingCount} Pending</span>
+            <div>
+                <div onclick="window.toggleCustomer('${client}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50">
+                    <div class="flex items-center gap-3">
+                        <span class="text-lg font-black tracking-tighter">${client}</span>
+                        <span class="text-[9px] px-2 py-1 rounded bg-red-600 text-white font-bold">${pCount} PENDING</span>
                     </div>
-                    <span class="text-slate-300 font-black text-[10px] tracking-wider">${isExp ? 'CLOSE' : 'OPEN'}</span>
+                    <span class="text-[10px] font-bold text-slate-400">${isOpen ? 'CLOSE' : 'OPEN'}</span>
                 </div>
-
-                <div class="${isExp ? '' : 'hidden'} overflow-x-auto bg-white border-t">
-                    <table class="w-full text-[11px] border-collapse bg-white">
-                        <thead class="bg-slate-100 text-slate-500 uppercase font-black text-[9px] border-b">
+                <div class="${isOpen ? '' : 'hidden'} overflow-x-auto border-t bg-white">
+                    <table class="w-full text-[11px]">
+                        <thead class="bg-slate-50 text-[9px] font-black text-slate-400 border-b">
                             <tr>
-                                <th class="p-3 text-left w-24 border-r">Date</th>
-                                <th class="p-3 text-left border-r">Issue & History Logs</th>
-                                <th class="p-3 text-center w-36 border-r">Status</th>
+                                <th class="p-3 text-left border-r w-24">Date</th>
+                                <th class="p-3 text-left border-r">Issue & Latest Log</th>
+                                <th class="p-3 text-center border-r w-32">Status</th>
                                 <th class="p-3 text-left w-32">Ticket ID</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            ${jobs.map(j => {
-                                const logs = j.logs || [];
-                                const latestLogEntry = logs.slice(-1); // Only 1 log entry shown
-                                
-                                return `
-                                <tr class="hover:bg-blue-50/20 group">
-                                    <td onclick="window.editField('${j.id}', 'dateStr', '${j.dateStr}')" class="p-3 font-bold text-slate-400 border-r cursor-pointer hover:text-blue-500">${j.dateStr}</td>
+                        <tbody class="divide-y">
+                            ${jobs.map(j => `
+                                <tr>
+                                    <td onclick="window.editField('${j.id}','dateStr','${j.dateStr}')" class="p-3 border-r font-bold text-slate-400">${j.dateStr}</td>
                                     <td class="p-3 border-r">
-                                        <div class="font-black text-slate-800 uppercase mb-2">${j.title}</div>
-                                        <div class="space-y-1 mb-2">
-                                            ${latestLogEntry.map(log => `<div class="bg-blue-50 text-blue-700 p-1 px-2 rounded-sm text-[10px] font-bold border-l-2 border-blue-400">${log}</div>`).join('')}
-                                        </div>
+                                        <div class="font-black mb-1">${j.title}</div>
+                                        ${j.logs.length ? `<div class="bg-blue-50 text-blue-700 p-1 px-2 rounded border-l-2 border-blue-400 font-bold mb-2">${j.logs.slice(-1)}</div>` : ''}
                                         <div class="flex gap-1">
-                                            <input id="log-in-${j.id}" placeholder="UPDATE LOG..." class="flex-1 bg-slate-50 border p-1 px-2 rounded text-[10px] outline-none font-semibold uppercase">
-                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(logs)})' class="bg-slate-800 text-white px-3 rounded text-[9px] font-bold uppercase">Add</button>
+                                            <input id="log-in-${j.id}" placeholder="UPDATE..." class="flex-1 bg-slate-50 border p-1 rounded text-[10px] uppercase">
+                                            <button onclick='window.addLog("${j.id}", ${JSON.stringify(j.logs)})' class="bg-slate-800 text-white px-2 rounded text-[9px] font-bold">ADD</button>
                                         </div>
                                     </td>
                                     <td class="p-3 border-r text-center">
-                                        <button onclick="window.changeStatus('${j.id}')" 
-                                                class="w-full rounded-sm py-2 font-black text-[9px] uppercase shadow-sm transition active:scale-90
-                                                ${j.status === 'Solved' ? 'bg-emerald-500 text-white' : (j.priority === 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-orange-500 text-white')}">
-                                            ${j.status}
-                                        </button>
+                                        <button onclick="window.changeStatus('${j.id}')" class="w-full py-2 rounded font-black text-[9px] text-white ${j.status === 'Solved' ? 'bg-emerald-500' : (j.priority === 3 ? 'bg-red-600' : 'bg-orange-500')}">${j.status}</button>
                                     </td>
-                                    <td onclick="window.editField('${j.id}', 'ticket', '${j.ticket}')" class="p-3 font-mono text-slate-400 font-bold uppercase cursor-pointer hover:text-blue-500">
-                                        ${j.ticket}
-                                    </td>
-                                </tr>
-                            `).join('')}
+                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-3 font-mono font-bold text-slate-400">${j.ticket}</td>
+                                </tr>`).join('')}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        `;
+            </div>`;
     }).join('');
 };
