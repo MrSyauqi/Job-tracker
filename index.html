@@ -17,22 +17,21 @@
         </header>
 
         <div class="bg-white p-6 border-b grid grid-cols-1 md:grid-cols-5 gap-3 shadow-sm">
-            <input id="jc" list="customerData" placeholder="CUSTOMER (FLEX_P5)" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none">
-            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none">
-            <input id="rt" placeholder="REPORT ID/TICKET" class="p-3 border rounded text-sm font-mono outline-none">
+            <input id="jc" list="customerData" placeholder="CUSTOMER (FLEX_P5)" class="p-3 border rounded text-sm font-black uppercase bg-slate-50 outline-none focus:ring-1 focus:ring-blue-400">
+            <input id="jt" placeholder="ISSUE SUMMARY" class="p-3 border rounded text-sm md:col-span-2 uppercase outline-none focus:ring-1 focus:ring-blue-400">
+            <input id="rt" placeholder="REPORT ID/TICKET" class="p-3 border rounded text-sm font-mono outline-none focus:ring-1 focus:ring-blue-400">
             <select id="jp" class="p-3 border rounded text-sm font-black bg-blue-50 outline-none">
-                <option value="3">🚨 CRITICAL</option>
-                <option value="2" selected>⏳ PENDING</option>
-                <option value="1">✅ SOLVED</option>
+                <option value="3">CRITICAL</option> <option value="2" selected>PENDING</option>
+                <option value="1">SOLVED</option>
             </select>
-            <button onclick="window.addJob(event)" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition">Register Technical Record</button>
+            <button onclick="window.addJob(event)" class="md:col-span-5 bg-slate-800 text-white py-4 rounded font-black text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition shadow">Register Technical Record</button>
             <datalist id="customerData"></datalist>
         </div>
 
         <div class="bg-white rounded-b-xl shadow-lg min-h-[500px]">
             <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
                 <h2 class="text-xs font-black text-slate-500 uppercase tracking-tighter">Site Fleet History</h2>
-                <input id="search" onkeyup="window.renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none">
+                <input id="search" onkeyup="window.renderDashboard()" placeholder="SEARCH SITE..." class="text-[10px] p-2 border rounded w-48 uppercase font-bold outline-none focus:ring-1 focus:ring-blue-400">
             </div>
             <div id="customerGrid" class="divide-y"></div>
         </div>
