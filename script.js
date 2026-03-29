@@ -25,7 +25,7 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const statusText = document.getElementById('connectionText');
     
     if (dot && statusText) {
-        dot.style.backgroundColor = "#10b981"; // Green
+        dot.style.backgroundColor = "#10b981"; 
         dot.classList.remove('animate-pulse');
         statusText.innerText = "DATABASE CONNECTED";
         statusText.style.color = "#10b981";
@@ -43,14 +43,14 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     const statusText = document.getElementById('connectionText');
     if (dot && statusText) {
-        dot.style.backgroundColor = "#ef4444"; // Red
+        dot.style.backgroundColor = "#ef4444"; 
         dot.classList.add('animate-pulse');
         statusText.innerText = "DATABASE DISCONNECTED";
         statusText.style.color = "#ef4444";
     }
 });
 
-// --- SORTING LOGIC ---
+// --- LOGIC FUNCTIONS ---
 window.updateSortOrder = () => {
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     sortedCustomerNames = Object.keys(groups).sort((a, b) => {
@@ -62,14 +62,23 @@ window.updateSortOrder = () => {
 window.toggleFolder = (name) => {
     if (expandedSet.has(name)) {
         expandedSet.delete(name);
-        window.updateSortOrder(); // Jumps/Sorts ONLY when you click "CLOSE"
+        window.updateSortOrder(); 
     } else {
         expandedSet.add(name);
     }
     window.renderDashboard();
 };
 
-// --- ACTIONS ---
+// FIX: Added missing toggleLogs function
+window.toggleLogs = (id) => {
+    if (openLogsSet.has(id)) {
+        openLogsSet.delete(id);
+    } else {
+        openLogsSet.add(id);
+    }
+    window.renderDashboard();
+};
+
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
     if (!t.value || !c.value) return alert("Missing Info");
@@ -122,7 +131,7 @@ window.renderDashboard = () => {
         const jobs = groups[name] || [];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Solved to bottom
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
         return `
@@ -137,30 +146,36 @@ window.renderDashboard = () => {
                     </div>
                     <button class="text-[9px] font-bold px-4 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'CLOSE' : 'OPEN'}</button>
                 </div>
-                <div class="${isOpen ? '' : 'hidden'} bg-white border-t">
+                <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
                     <table class="w-full text-[10px]">
                         <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase text-[9px]">
-                            <tr><th class="p-3 text-left border-r">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l">Ticket</th><th class="p-3 text-center">Status</th></tr>
+                            <tr><th class="p-3 text-left border-r w-28">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l w-32">Ticket</th><th class="p-3 text-center w-32">Status</th></tr>
                         </thead>
                         <tbody class="divide-y">
-                            ${jobs.map(j => `
+                            ${jobs.map(j => {
+                                const isLogOpen = openLogsSet.has(j.id);
+                                const displayLogs = isLogOpen ? (j.logs || []) : (j.logs && j.logs.length > 0 ? [j.logs[j.logs.length - 1]] : []);
+
+                                return `
                                 <tr>
                                     <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
-                                            ${(openLogsSet.has(j.id) ? j.logs : (j.logs.slice(-1))).map(l => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">${l}</div>`).join('')}
+                                            ${displayLogs.map(l => `<div class="bg-blue-50 text-blue-700 p-2 rounded border-l-4 border-blue-400 font-bold uppercase text-[10px]">${l}</div>`).join('')}
+                                            ${j.logs && j.logs.length > 1 ? `<button onclick="window.toggleLogs('${j.id}')" class="text-[9px] font-black text-blue-500 mt-1 uppercase underline">${isLogOpen ? '↑ Show Less' : '↓ View All'}</button>` : ''}
                                         </div>
                                         <div class="flex gap-2">
                                             <input id="log-in-${j.id}" placeholder="ADD SUMMARY..." class="flex-1 border p-2 rounded text-[10px] uppercase font-bold outline-none bg-slate-50">
-                                            <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
+                                            <button onclick="window.addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
                                     <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500">${j.ticket}</td>
                                     <td class="p-4 text-center">
-                                        <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
+                                        <div onclick="window.cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">${j.status}</div>
                                     </td>
-                                </tr>`).join('')}
+                                </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
