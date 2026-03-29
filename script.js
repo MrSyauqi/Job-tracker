@@ -18,7 +18,7 @@ let globalData = [];
 let expandedSet = new Set(); 
 let openLogsSet = new Set(); 
 
-// --- REAL-TIME LISTENER ---
+// --- DATABASE SYNC ---
 onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     const dot = document.getElementById('connectionDot');
     if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm transition-all";
@@ -27,7 +27,6 @@ onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
     window.renderDashboard();
 });
 
-// --- CUSTOMER AUTO-SUGGEST ---
 function updateDatalist() {
     const list = document.getElementById('customerList');
     if (!list) return;
@@ -35,10 +34,10 @@ function updateDatalist() {
     list.innerHTML = names.map(c => `<option value="${c}">`).join('');
 }
 
-// --- ACTIONS ---
+// --- GLOBAL ACTIONS ---
 window.addJob = async () => {
     const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Fill Name and Issue");
+    if (!t.value || !c.value) return alert("Missing Info");
     await addDoc(jobsCol, {
         title: t.value.toUpperCase(),
         client: c.value.trim().toUpperCase(),
@@ -52,6 +51,16 @@ window.addJob = async () => {
     t.value = ''; r.value = '';
 };
 
+// FIX: Edit function for Date and Ticket
+window.editField = async (id, field, oldVal) => {
+    const newVal = prompt(`EDIT ${field.toUpperCase()}:`, oldVal);
+    if (newVal !== null && newVal !== oldVal) {
+        const updateObj = {};
+        updateObj[field === 'date' ? 'dateStr' : 'ticket'] = newVal.toUpperCase();
+        await updateDoc(doc(db, "jobs", id), updateObj);
+    }
+};
+
 window.cycleStatus = async (id, current) => {
     const next = current === 'Pending' ? 'Critical' : (current === 'Critical' ? 'Solved' : 'Pending');
     const prio = next === 'Critical' ? 3 : (next === 'Pending' ? 2 : 1);
@@ -60,20 +69,16 @@ window.cycleStatus = async (id, current) => {
 
 window.addLog = async (id) => {
     const input = document.getElementById(`log-in-${id}`);
-    if (!input.value) return;
+    if (!input || !input.value) return;
     const job = globalData.find(j => j.id === id);
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), `[${time}] ${input.value.toUpperCase()}`] });
     input.value = '';
 };
 
-// --- TOGGLE LOGIC ---
+// --- FIX: OPEN/CLOSE TOGGLES ---
 window.toggleFolder = (name) => {
-    if (expandedSet.has(name)) {
-        expandedSet.delete(name);
-    } else {
-        expandedSet.add(name);
-    }
+    expandedSet.has(name) ? expandedSet.delete(name) : expandedSet.add(name);
     window.renderDashboard();
 };
 
@@ -82,58 +87,48 @@ window.toggleLogs = (id) => {
     window.renderDashboard();
 };
 
-// --- UI RENDERER ---
+// --- RENDERER ---
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
-
     const searchVal = document.getElementById('search').value.toUpperCase();
     const groups = globalData.reduce((acc, j) => { (acc[j.client] = acc[j.client] || []).push(j); return acc; }, {});
     
-    // Danger Sorting: Most Critical customers to the top
+    // Danger Sorting: Most Critical to top
     const sortedNames = Object.keys(groups).sort((a, b) => {
         const score = (c) => groups[c].filter(j => j.status === 'Critical').length * 100 + groups[c].filter(j => j.status === 'Pending').length;
-        return score(b) - score(score(a));
+        return score(b) - score(a);
     });
 
     container.innerHTML = sortedNames.filter(c => c.includes(searchVal)).map(name => {
         const jobs = groups[name];
         const crits = jobs.filter(j => j.status === 'Critical').length;
         const pends = jobs.filter(j => j.status === 'Pending').length;
-        
-        // Solved cases auto-move to bottom
-        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0)); // Solved move to bottom
 
         const isOpen = expandedSet.has(name);
-
         return `
             <div class="border-b">
                 <div onclick="window.toggleFolder('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
                     <div class="flex items-center gap-3">
                         <span class="text-lg font-black uppercase text-slate-800">${name}</span>
-                        <div class="flex gap-1"> ${crits > 0 ? `<span class="bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded animate-pulse">${crits} CRIT</span>` : ''}
+                        <div class="flex gap-1">
+                            ${crits > 0 ? `<span class="bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded animate-pulse">${crits} CRIT</span>` : ''}
                             ${pends > 0 ? `<span class="bg-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded">${pends} PEND</span>` : ''}
                         </div>
                     </div>
-                    <button class="text-[9px] font-bold px-4 py-1.5 bg-slate-100 rounded text-slate-500 uppercase hover:bg-slate-800 hover:text-white transition">
-                        ${isOpen ? 'CLOSE' : 'OPEN'}
-                    </button>
+                    <button class="text-[9px] font-bold px-4 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'CLOSE' : 'OPEN'}</button>
                 </div>
 
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t overflow-x-auto">
                     <table class="w-full text-[10px]">
-                        <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase tracking-widest text-[9px]">
-                            <tr>
-                                <th class="p-3 text-left w-28 border-r">Date</th>
-                                <th class="p-3 text-left">Issue & Summary</th>
-                                <th class="p-3 text-center w-32 border-r border-l">Ticket</th>
-                                <th class="p-3 text-center w-32">Status</th>
-                            </tr>
+                        <thead class="bg-slate-50 border-b text-slate-400 font-black uppercase text-[9px]">
+                            <tr><th class="p-3 text-left border-r">Date</th><th class="p-3 text-left">Issue & Summary</th><th class="p-3 text-center border-r border-l">Ticket</th><th class="p-3 text-center">Status</th></tr>
                         </thead>
                         <tbody class="divide-y">
                             ${jobs.map(j => `
                                 <tr>
-                                    <td class="p-4 border-r font-bold text-slate-400">${j.dateStr}</td>
+                                    <td onclick="window.editField('${j.id}','date','${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500 transition">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
@@ -145,7 +140,7 @@ window.renderDashboard = () => {
                                             <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-                                    <td class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs">${j.ticket}</td>
+                                    <td onclick="window.editField('${j.id}','ticket','${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500 transition">${j.ticket}</td>
                                     <td class="p-4 text-center">
                                         <div onclick="cycleStatus('${j.id}','${j.status}')" class="py-2 px-1 rounded font-black text-[9px] text-white cursor-pointer shadow-sm transition ${j.status==='Solved'?'bg-emerald-500':(j.status==='Critical'?'bg-red-600 animate-pulse':'bg-orange-500')}">
                                             ${j.status}
