@@ -1,92 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyDQ-z3DZqCULVOMlMNxXRhKUa9pHlhKwUc",
-    authDomain: "workbasetrial.firebaseapp.com",
-    projectId: "workbasetrial",
-    storageBucket: "workbasetrial.firebasestorage.app",
-    messagingSenderId: "122123476567",
-    appId: "1:122123476567:web:aa60037c0393daeadc0d12"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const jobsCol = collection(db, "jobs");
-
-let globalData = [];
-let expandedSet = new Set(); 
-let openLogsSet = new Set(); 
-
-onSnapshot(query(jobsCol, orderBy("createdAt", "desc")), (snapshot) => {
-    const dot = document.getElementById('connectionDot');
-    if (dot) dot.className = "h-4 w-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm";
-    globalData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    window.renderDashboard();
-});
-
-// --- REGISTER CASE ---
-window.addJob = async () => {
-    const t = document.getElementById('jt'), c = document.getElementById('jc'), p = document.getElementById('jp'), r = document.getElementById('rt');
-    if (!t.value || !c.value) return alert("Fill Fields");
-    const clientName = c.value.trim().toUpperCase();
-    
-    await addDoc(jobsCol, {
-        title: t.value.toUpperCase(),
-        client: clientName,
-        priority: parseInt(p.value),
-        ticket: r.value || "NA",
-        status: p.value == "1" ? 'Solved' : (p.value == "3" ? 'Critical' : 'Pending'),
-        logs: [],
-        createdAt: Date.now(),
-        dateStr: new Date().toLocaleDateString('en-GB')
-    });
-    expandedSet.add(clientName);
-    t.value = ''; c.value = ''; r.value = '';
-};
-
-// --- (1) UPDATE STATUS & AUTO-SORT LOGIC ---
-window.cycleStatus = async (id, currentStatus) => {
-    const statusMap = { 'Pending': 'Critical', 'Critical': 'Solved', 'Solved': 'Pending' };
-    const priorityMap = { 'Pending': 2, 'Critical': 3, 'Solved': 1 };
-    const nextStatus = statusMap[currentStatus];
-    
-    await updateDoc(doc(db, "jobs", id), { 
-        status: nextStatus,
-        priority: priorityMap[nextStatus]
-    });
-};
-
-// --- (2) EDIT DATE OR TICKET INLINE ---
-window.editField = async (id, field, currentValue) => {
-    const newValue = prompt(`Edit ${field.toUpperCase()}:`, currentValue);
-    if (newValue !== null && newValue !== currentValue) {
-        const updateData = {};
-        updateData[field === 'date' ? 'dateStr' : 'ticket'] = newValue.toUpperCase();
-        await updateDoc(doc(db, "jobs", id), updateData);
-    }
-};
-
-window.addLog = async (id) => {
-    const input = document.getElementById(`log-in-${id}`);
-    if (!input || !input.value) return;
-    const job = globalData.find(j => j.id === id);
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    const newEntry = `[${time}] ${input.value.toUpperCase()}`;
-    await updateDoc(doc(db, "jobs", id), { logs: [...(job.logs || []), newEntry] });
-    input.value = '';
-};
-
-window.toggleLogHistory = (id) => {
-    openLogsSet.has(id) ? openLogsSet.delete(id) : openLogsSet.add(id);
-    window.renderDashboard();
-};
-
-window.toggleCust = (name) => {
-    expandedSet.has(name) ? expandedSet.delete(name) : expandedSet.add(name);
-    window.renderDashboard();
-};
-
 window.renderDashboard = () => {
     const container = document.getElementById('customerGrid');
     if (!container) return;
@@ -98,7 +9,11 @@ window.renderDashboard = () => {
     container.innerHTML = Object.keys(groups).sort().filter(c => c.includes(searchVal)).map(name => {
         let jobs = groups[name];
         
-        // (1) SORTING LOGIC: Critical (3) > Pending (2) > Solved (1)
+        // (1) CALCULATE INDICATORS FOR THE HEADER
+        const criticalCount = jobs.filter(j => j.status === 'Critical').length;
+        const pendingCount = jobs.filter(j => j.status === 'Pending').length;
+
+        // Sorting: Critical > Pending > Solved
         jobs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         const isOpen = expandedSet.has(name);
@@ -106,8 +21,18 @@ window.renderDashboard = () => {
         return `
             <div class="border-b">
                 <div onclick="toggleCust('${name}')" class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
-                    <span class="text-lg font-black uppercase tracking-tight">${name}</span>
-                    <span class="text-[9px] font-bold px-3 py-1 bg-slate-100 rounded text-slate-500 uppercase">${isOpen ? 'Close' : 'Open'}</span>
+                    <div class="flex items-center gap-4">
+                        <span class="text-lg font-black uppercase tracking-tight text-slate-800">${name}</span>
+                        
+                        <div class="flex gap-2">
+                            ${criticalCount > 0 ? `<span class="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">${criticalCount} CRITICAL</span>` : ''}
+                            ${pendingCount > 0 ? `<span class="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">${pendingCount} PENDING</span>` : ''}
+                        </div>
+                    </div>
+                    
+                    <span class="text-[9px] font-bold px-3 py-1 bg-slate-100 rounded text-slate-500 uppercase tracking-widest">
+                        ${isOpen ? 'Close' : 'Open'}
+                    </span>
                 </div>
 
                 <div class="${isOpen ? '' : 'hidden'} bg-white border-t">
@@ -127,9 +52,8 @@ window.renderDashboard = () => {
                                 const displayLogs = isLogExpanded ? logs : (logs.length > 0 ? [logs[logs.length - 1]] : []);
 
                                 return `
-                                <tr class="hover:bg-slate-50/50">
-                                    <td onclick="editField('${j.id}', 'date', '${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-edit hover:text-blue-500 transition">${j.dateStr}</td>
-                                    
+                                <tr class="hover:bg-slate-50/50 transition">
+                                    <td onclick="editField('${j.id}', 'date', '${j.dateStr}')" class="p-4 border-r font-bold text-slate-400 cursor-pointer hover:text-blue-500">${j.dateStr}</td>
                                     <td class="p-4 border-r">
                                         <div class="font-black mb-2 text-sm uppercase text-slate-800">${j.title}</div>
                                         <div class="space-y-1 mb-3">
@@ -148,9 +72,7 @@ window.renderDashboard = () => {
                                             <button onclick="addLog('${j.id}')" class="bg-slate-800 text-white px-4 rounded text-[10px] font-black">ADD</button>
                                         </div>
                                     </td>
-
-                                    <td onclick="editField('${j.id}', 'ticket', '${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-edit hover:text-blue-500 transition">${j.ticket}</td>
-                                    
+                                    <td onclick="editField('${j.id}', 'ticket', '${j.ticket}')" class="p-4 border-r text-center font-mono font-black text-slate-400 text-xs cursor-pointer hover:text-blue-500">${j.ticket}</td>
                                     <td class="p-4 text-center">
                                         <div onclick="cycleStatus('${j.id}', '${j.status}')" 
                                             class="py-2 px-1 rounded font-black text-[9px] text-white shadow-sm cursor-pointer hover:brightness-90 transition ${
@@ -166,5 +88,3 @@ window.renderDashboard = () => {
             </div>`;
     }).join('');
 };
-
-document.getElementById('currentDateTime').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
